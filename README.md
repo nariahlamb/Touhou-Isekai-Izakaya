@@ -51,7 +51,8 @@
 | Section | Description | Link |
 |:-------:|:------------|:----:|
 | 🎯 | **Overview** - 项目概述与核心特色 | [Jump](#-overview) |
-| 🧠 | **Memory System** - 独特的长记忆机制 | [Jump](#-long-term-memory) |
+| � | **AI Agent** - 智能体架构解析 | [Jump](#-ai-agent-architecture) |
+| �🧠 | **Memory System** - 独特的长记忆机制 | [Jump](#-long-term-memory) |
 | 🏗️ | **Architecture** - 系统架构与技术栈 | [Jump](#️-architecture) |
 | 🚀 | **Quick Start** - 快速开始指南 | [Jump](#-quick-start) |
 | 📅 | **Roadmap** - 开发计划与待办 | [Jump](#-roadmap) |
@@ -115,6 +116,58 @@
 - **🍶 沉浸式居酒屋经营**: 利用程序化生成的瓦片地图系统，自由装修厨房、用餐区。收集食材，研究菜谱，制作出让妖怪和神明都赞不绝口的料理。
 - **⚔️ 策略与嘴遁并存的战斗**: 回合制弹幕战与嘴遁系统 (Persuasion) 结合。通过输入文本试图说服对手，AI 将判定你的话语是否能动摇对方的战意。
 - **👥 丰富的角色生态**: 收录了百余位东方 Project 经典角色，每人拥有独立的属性、符卡和行为逻辑。
+
+<br/>
+
+<!-- 动态分隔线 -->
+<img src="https://user-images.githubusercontent.com/73097560/115834477-dbab4500-a447-11eb-908a-139a6edaec5c.gif" width="100%">
+
+<br/>
+
+## 🤖 AI Agent Architecture
+
+> 本项目不仅仅是一个简单的 LLM 调用程序，而是一个拥有**感知、记忆、决策、行动**完整回路的 **智能体 (Autonomous Agent)**。
+
+### ⚙️ Core Loop
+
+```mermaid
+graph TD
+    User[User Input / Game Event] --> Perception[👁️ Perception Layer]
+    Perception -->|Context & Intent| Brain[🧠 The Brain (LLM)]
+    
+    subgraph Memory System
+        Brain <-->|Retrieve/Store| STM[Short-term Context]
+        Brain <-->|RAG| LTM[(Long-term Memory)]
+    end
+    
+    Brain -->|Reasoning| Decision[⚖️ Decision Layer]
+    
+    Decision -->|Direct Reply| Output[💬 Dialogue Output]
+    Decision -->|Function Call| Action[🛠️ Action Layer]
+    
+    subgraph World Interaction
+        Action -->|Update State| GameState[Game State (Pinia)]
+        Action -->|Trigger| Combat[Combat System]
+        Action -->|Manage| Economy[Izakaya Management]
+    end
+    
+    GameState -->|Feedback| Perception
+    Combat -->|Feedback| Perception
+```
+
+#### 1. Perception (感知层)
+Agent 不仅接收用户的文本输入，还实时监控**游戏环境状态**（如当前时间、金钱、好感度、任务进度）。所有环境信息会被编码为 System Prompt 的一部分，让 AI "看到" 现在的世界。
+
+#### 2. Brain & Memory (大脑与记忆)
+核心 LLM (Storyteller) 结合**短期上下文**（最近的对话）与**长期记忆**（检索到的历史摘要）进行推理。它不仅生成回复，还在思考："玩家现在的意图是什么？" "我应该推进剧情还是闲聊？" "是否需要触发战斗？"
+
+#### 3. Decision & Action (决策与行动)
+基于推理结果，Agent 会输出**结构化指令 (XML/JSON)** 而非纯文本。
+- **Dialogue**: 生成符合角色性格的回复。
+- **State Change**: 修改好感度、扣除金钱、获得物品。
+- **System Trigger**: 启动战斗模式、切换场景、发放任务。
+
+这使得 NPC 真正“活”在游戏世界中，而非仅仅是一个聊天机器人。
 
 <br/>
 
