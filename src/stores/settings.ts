@@ -100,6 +100,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const llmConfigs = ref<Record<string, LLMConfig>>(_.cloneDeep(DEFAULT_LLM_CONFIGS));
   const enableMemoryRefinement = ref(true); // Default to enabled
+  const enableManagementSystem = ref(false); // Toggle for Izakaya Management System
   
   const theme = ref<'light' | 'dark' | 'eye-protection'>('light');
   const currentSaveSlotId = ref<number | undefined>(undefined);
@@ -160,6 +161,9 @@ export const useSettingsStore = defineStore('settings', () => {
       if (settings.enableMemoryRefinement !== undefined) {
         enableMemoryRefinement.value = settings.enableMemoryRefinement;
       }
+      if (settings.enableManagementSystem !== undefined) {
+        enableManagementSystem.value = settings.enableManagementSystem;
+      }
       if (settings.audioVolume !== undefined) audioVolume.value = settings.audioVolume;
       if (settings.enableAudio !== undefined) enableAudio.value = settings.enableAudio;
       if (settings.bgmVolume !== undefined) bgmVolume.value = settings.bgmVolume;
@@ -180,6 +184,7 @@ export const useSettingsStore = defineStore('settings', () => {
       globalProvider: JSON.parse(JSON.stringify(globalProvider.value)),
       llmConfigs: JSON.parse(JSON.stringify(llmConfigs.value)),
       enableMemoryRefinement: enableMemoryRefinement.value,
+      enableManagementSystem: enableManagementSystem.value,
       theme: theme.value,
       currentSaveSlotId: currentSaveSlotId.value,
       audioVolume: audioVolume.value,
@@ -259,6 +264,7 @@ export const useSettingsStore = defineStore('settings', () => {
       globalProvider,
       llmConfigs,
       enableMemoryRefinement,
+      enableManagementSystem,
       theme,
       currentSaveSlotId,
       audioVolume,

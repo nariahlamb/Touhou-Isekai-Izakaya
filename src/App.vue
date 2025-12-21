@@ -14,7 +14,7 @@ import SaveManager from '@/components/SaveManager.vue';
 import MemoryPanel from '@/components/MemoryPanel.vue';
 import SummaryModal from '@/components/SummaryModal.vue';
 import ToastContainer from '@/components/ToastContainer.vue';
-import { Send, Settings as SettingsIcon, Save, Loader2, Square, Book, Database, Blocks, Brain, Hammer } from 'lucide-vue-next';
+import { Send, Settings as SettingsIcon, Save, Loader2, Square, Book, Database, Blocks, Brain, Hammer, Store } from 'lucide-vue-next';
 import PromptBuilder from '@/components/PromptBuilder.vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import CombatOverlay from '@/components/CombatOverlay.vue';
@@ -344,6 +344,7 @@ function handleManagementClose() {
 
               <!-- Map Regeneration Toggle (Outside) -->
               <button
+                v-if="settingsStore.enableManagementSystem"
                 @click="shouldRegenerateMap = !shouldRegenerateMap"
                 class="flex-shrink-0 mb-1.5 p-3 rounded-full border-2 transition-all duration-300 relative group/regen"
                 :class="[
@@ -362,6 +363,28 @@ function handleManagementClose() {
                 
                 <!-- Status Indicator Dot -->
                 <span v-if="shouldRegenerateMap" class="absolute top-0 right-0 w-2.5 h-2.5 bg-touhou-red rounded-full border border-white"></span>
+              </button>
+
+              <!-- Management System Toggle -->
+              <button
+                @click="settingsStore.enableManagementSystem = !settingsStore.enableManagementSystem; if (!settingsStore.enableManagementSystem) shouldRegenerateMap = false;"
+                class="flex-shrink-0 mb-1.5 ml-2 p-3 rounded-full border-2 transition-all duration-300 relative group/mgmt"
+                :class="[
+                  settingsStore.enableManagementSystem 
+                    ? 'bg-blue-50 text-blue-600 border-blue-200 shadow-md' 
+                    : 'bg-transparent text-izakaya-wood/40 border-izakaya-wood/10 hover:border-izakaya-wood/30 hover:text-izakaya-wood/60'
+                ]"
+                title="营业系统开关 (开启后可触发店铺经营)"
+              >
+                <Store class="w-5 h-5" :class="{ 'text-blue-500': settingsStore.enableManagementSystem }" />
+                
+                <!-- Tooltip / Label -->
+                <span class="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-xs font-bold px-2 py-1 rounded bg-izakaya-wood text-izakaya-paper opacity-0 group-hover/mgmt:opacity-100 transition-opacity pointer-events-none shadow-sm">
+                  {{ settingsStore.enableManagementSystem ? '营业系统: 开启' : '营业系统: 关闭' }}
+                </span>
+                
+                <!-- Status Indicator Dot -->
+                <span v-if="settingsStore.enableManagementSystem" class="absolute top-0 right-0 w-2.5 h-2.5 bg-blue-500 rounded-full border border-white"></span>
               </button>
             </div>
           </div>

@@ -580,6 +580,13 @@ class GameLoopService {
 
   private initializeManagement(triggerData: any) {
     const gameStore = useGameStore();
+    const settingsStore = useSettingsStore();
+    
+    if (!settingsStore.enableManagementSystem) {
+        console.warn('[GameLoop] Management trigger received but system is disabled. Ignoring.');
+        return;
+    }
+
     const toastStore = useToastStore();
 
     console.log('[GameLoop] Initializing Management Mode:', triggerData);

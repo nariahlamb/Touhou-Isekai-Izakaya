@@ -65,6 +65,7 @@ export interface GameSettings {
   };
   llmConfigs?: Record<string, any>;
   enableMemoryRefinement?: boolean; // Toggle for LLM-based memory refinement
+  enableManagementSystem?: boolean; // Toggle for Izakaya Management System
   theme: 'light' | 'dark' | 'eye-protection';
   currentSaveSlotId?: number; // Active slot
   

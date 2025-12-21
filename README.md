@@ -334,7 +334,7 @@ graph TD
 
 <div align="center">
 
-**非盈利性质 (Non-Profit)** • **AIPR 性质 (AI Roleplay)** • **Fan-fiction (二次创作)**
+**非盈利性质 (Non-Profit)** • **AIPR 性质 (AI Roleplay)** • **二次创作 (Fan-fiction)**
 
 </div>
 

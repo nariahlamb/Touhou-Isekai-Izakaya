@@ -136,6 +136,12 @@ export class PromptService {
         const playerName = gameStore.state.player.name || '玩家';
         finalContent = finalContent.replace(/\{\{user\}\}/g, playerName);
         
+        // Filter Management Logic if disabled
+        const settingsStore = useSettingsStore();
+        if (!settingsStore.enableManagementSystem) {
+           finalContent = finalContent.replace(/【问题】经营模式预判:[\s\S]*?(?=\n\n【问题】|\n\n)/g, '');
+        }
+        
         this.addSection(ctx, 'cot_guide', 'COT 引导', 'system', finalContent);
       }
     };
@@ -149,8 +155,13 @@ export class PromptService {
         const playerName = gameStore.state.player.name || '玩家';
         finalContent = finalContent.replace(/\{\{user\}\}/g, playerName);
         
-        // Inject Word Count Rule
+        // Filter Management Protocol if disabled
         const settingsStore = useSettingsStore();
+        if (!settingsStore.enableManagementSystem) {
+           finalContent = finalContent.replace(/<management_trigger_protocol>[\s\S]*?<\/management_trigger_protocol>/g, '');
+        }
+        
+        // Inject Word Count Rule
         const chatConfig = settingsStore.llmConfigs['chat'];
         const min = chatConfig?.minWordCount ?? 800;
         const max = chatConfig?.maxWordCount ?? 1200;
