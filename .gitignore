@@ -24,5 +24,4 @@ dist-ssr
 *.sw?
 
 # Project specific documentation to ignore
-TECHNICAL_DESIGN.md
-src/docs/
+
