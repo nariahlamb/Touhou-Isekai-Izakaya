@@ -52,7 +52,7 @@
 |:-------:|:------------|:----:|
 | 🎯 | **Overview** - 项目概述与核心特色 | [Jump](#-overview) |
 | � | **AI Agent** - 智能体架构解析 | [Jump](#-ai-agent-architecture) |
-| �🧠 | **Memory System** - 独特的长记忆机制 | [Jump](#-long-term-memory) |
+| � | **Memory System** - 独特的长记忆机制 | [Jump](#-long-term-memory) |
 | 🏗️ | **Architecture** - 系统架构与技术栈 | [Jump](#️-architecture) |
 | 🚀 | **Quick Start** - 快速开始指南 | [Jump](#-quick-start) |
 | 📅 | **Roadmap** - 开发计划与待办 | [Jump](#-roadmap) |
@@ -132,23 +132,23 @@
 
 ```mermaid
 graph TD
-    User[User Input / Game Event] --> Perception[👁️ Perception Layer]
-    Perception -->|Context & Intent| Brain[🧠 The Brain (LLM)]
+    User["User Input / Game Event"] --> Perception["👁️ Perception Layer"]
+    Perception -->|Context & Intent| Brain["🧠 The Brain (LLM)"]
     
     subgraph Memory System
-        Brain <-->|Retrieve/Store| STM[Short-term Context]
-        Brain <-->|RAG| LTM[(Long-term Memory)]
+        Brain <-->|Retrieve/Store| STM["Short-term Context"]
+        Brain <-->|RAG| LTM[("Long-term Memory")]
     end
     
-    Brain -->|Reasoning| Decision[⚖️ Decision Layer]
+    Brain -->|Reasoning| Decision["⚖️ Decision Layer"]
     
-    Decision -->|Direct Reply| Output[💬 Dialogue Output]
-    Decision -->|Function Call| Action[🛠️ Action Layer]
+    Decision -->|Direct Reply| Output["💬 Dialogue Output"]
+    Decision -->|Function Call| Action["🛠️ Action Layer"]
     
     subgraph World Interaction
-        Action -->|Update State| GameState[Game State (Pinia)]
-        Action -->|Trigger| Combat[Combat System]
-        Action -->|Manage| Economy[Izakaya Management]
+        Action -->|Update State| GameState["Game State (Pinia)"]
+        Action -->|Trigger| Combat["Combat System"]
+        Action -->|Manage| Economy["Izakaya Management"]
     end
     
     GameState -->|Feedback| Perception
