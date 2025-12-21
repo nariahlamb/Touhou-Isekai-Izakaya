@@ -207,7 +207,7 @@ graph TD
  
  ### 前置要求 (Prerequisites)
  - Node.js 16+
- - API Key (支持 OpenAI / Anthropic / DeepSeek 格式)
+ - API Key (支持 OpenAI 格式)
  
  ### 安装步骤 (Installation)
  
@@ -228,7 +228,7 @@ graph TD
     ```
  
  4. **配置 API (Configure API)**
-    - 访问 `http://localhost:5173`
+    - 访问 `http://localhost:14791`
     - 点击 **设置 (⚙️)** 图标
     - 输入您的 API Base URL 和 Key
 
