@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { useSettingsStore } from '@/stores/settings';
 import { useGameStore } from '@/stores/game';
 import { audioManager } from '@/services/audio';
@@ -7,7 +7,12 @@ import { useToastStore } from '@/stores/toast';
 import { X, Save, Volume2, VolumeX, Music, FileText, Palette, CheckCircle, Image as ImageIcon, RefreshCw, AlertCircle, Check } from 'lucide-vue-next';
 import LLMConfigPanel from './LLMConfigPanel.vue';
 import { fetchModels, type ModelInfo } from '@/services/llm';
-import { DEFAULT_DRAWING_PROMPT_SYSTEM } from '@/services/drawing';
+import { 
+    drawingService,
+    DEFAULT_DRAWING_PROMPT_SYSTEM, 
+    DEFAULT_NOVELAI_V3_PROMPT_SYSTEM,
+    DEFAULT_NOVELAI_V4_PROMPT_SYSTEM
+  } from '@/services/drawing';
 import { generateMap } from '@/services/management/MapGenerator';
 
 const props = defineProps<{
@@ -30,7 +35,26 @@ const summaryTurnCount = ref(20);
 const drawingModels = ref<ModelInfo[]>([]);
 const isLoadingDrawingModels = ref(false);
 const drawingFetchError = ref('');
-const drawingFetchSuccess = ref(false);
+  const drawingFetchSuccess = ref(false);
+  const isTestingNovelAI = ref(false);
+  const novelAITestStatus = ref<'idle' | 'success' | 'error'>('idle');
+  const novelAITestError = ref('');
+
+  const testNovelAI = async () => {
+    isTestingNovelAI.value = true;
+    novelAITestStatus.value = 'idle';
+    novelAITestError.value = '';
+    
+    try {
+      await drawingService.testNovelAIConnection(settingsStore.drawingConfig);
+      novelAITestStatus.value = 'success';
+    } catch (error: any) {
+      novelAITestStatus.value = 'error';
+      novelAITestError.value = error.message || '连接测试失败';
+    } finally {
+      isTestingNovelAI.value = false;
+    }
+  };
 
 // Map Generation State
 const mapGenerationPrompt = ref('Cozy Izakaya with a large kitchen');
@@ -44,6 +68,31 @@ watch(() => props.isOpen, (newVal) => {
   } else if (newVal) {
     activeTab.value = 'global';
   }
+});
+
+watch(() => settingsStore.drawingConfig.providerType, (newVal) => {
+  if (newVal === 'novelai') {
+    if (!settingsStore.drawingConfig.apiBaseUrl || settingsStore.drawingConfig.apiBaseUrl.includes('openai.com')) {
+      settingsStore.drawingConfig.apiBaseUrl = 'https://api.novelai.net/ai/generate-image';
+    }
+    if (!settingsStore.drawingConfig.model) {
+      settingsStore.drawingConfig.model = 'nai-diffusion-4-full';
+    }
+  } else if (newVal === 'openai') {
+    if (!settingsStore.drawingConfig.apiBaseUrl || settingsStore.drawingConfig.apiBaseUrl.includes('novelai.net')) {
+      settingsStore.drawingConfig.apiBaseUrl = 'https://api.openai.com/v1';
+    }
+  }
+});
+
+watch(() => settingsStore.drawingConfig.steps, (newVal) => {
+  if (newVal < 1) settingsStore.drawingConfig.steps = 1;
+  if (newVal > 50) settingsStore.drawingConfig.steps = 50;
+});
+
+watch(() => settingsStore.drawingConfig.scale, (newVal) => {
+  if (newVal < 0) settingsStore.drawingConfig.scale = 0;
+  if (newVal > 31) settingsStore.drawingConfig.scale = 31;
 });
 
 // Audio Watchers
@@ -174,6 +223,19 @@ function handleStartSummary() {
   emit('open-summary', summaryTurnCount.value);
   emit('close');
 }
+
+const isCustomNovelAIModel = computed(() => {
+  const model = settingsStore.drawingConfig.model;
+  const standardModels = [
+    'nai-diffusion-4.5-full', 
+    'nai-diffusion-4.5-curated', 
+    'nai-diffusion-4-full', 
+    'nai-diffusion-4-curated', 
+    'nai-diffusion-3', 
+    'nai-diffusion-furry-3'
+  ];
+  return model === 'custom' || !standardModels.includes(model);
+});
 
 async function handleSave() {
   audioManager.playClick();
@@ -407,16 +469,66 @@ function handleVolumeChangeTest() {
                      提示词生成指令 (System Prompt)
                      <span class="text-xs font-normal text-izakaya-wood/50 ml-2">用于指导 LLM 如何编写绘图 Prompt</span>
                    </label>
+                   
+                   <!-- Nanobanana System Prompt -->
                    <textarea 
-                      v-model="settingsStore.drawingConfig.systemPrompt" 
+                      v-if="settingsStore.drawingConfig.providerType === 'openai'"
+                      v-model="settingsStore.drawingConfig.systemPromptOpenAI" 
                       rows="6"
                       class="w-full px-3 py-2 bg-white/60 border border-izakaya-wood/20 rounded-md shadow-sm focus:outline-none focus:border-touhou-red/50 focus:ring-1 focus:ring-touhou-red/20 transition-all font-mono text-xs text-izakaya-wood placeholder:text-izakaya-wood/30 resize-y"
                       :placeholder="DEFAULT_DRAWING_PROMPT_SYSTEM"
                     ></textarea>
+
+                   <!-- NovelAI System Prompt (V4/V4.5) -->
+                   <textarea 
+                      v-if="settingsStore.drawingConfig.providerType === 'novelai' && settingsStore.drawingConfig.model?.includes('nai-diffusion-4')"
+                      v-model="settingsStore.drawingConfig.systemPromptNovelAIV4" 
+                      rows="6"
+                      class="w-full px-3 py-2 bg-white/60 border border-izakaya-wood/20 rounded-md shadow-sm focus:outline-none focus:border-touhou-red/50 focus:ring-1 focus:ring-touhou-red/20 transition-all font-mono text-xs text-izakaya-wood placeholder:text-izakaya-wood/30 resize-y"
+                      :placeholder="DEFAULT_NOVELAI_V4_PROMPT_SYSTEM"
+                    ></textarea>
+
+                   <!-- NovelAI System Prompt (V3/Legacy) -->
+                   <textarea 
+                      v-else-if="settingsStore.drawingConfig.providerType === 'novelai'"
+                      v-model="settingsStore.drawingConfig.systemPromptNovelAIV3" 
+                      rows="6"
+                      class="w-full px-3 py-2 bg-white/60 border border-izakaya-wood/20 rounded-md shadow-sm focus:outline-none focus:border-touhou-red/50 focus:ring-1 focus:ring-touhou-red/20 transition-all font-mono text-xs text-izakaya-wood placeholder:text-izakaya-wood/30 resize-y"
+                      :placeholder="DEFAULT_NOVELAI_V3_PROMPT_SYSTEM"
+                    ></textarea>
+
                    <p class="text-xs text-izakaya-wood/50 font-serif">
-                     提示：建议保留“使用中文自然语言”、“无需输出解释”等关键指令。
+                     提示：Nanobanana 使用中文自然语言；NovelAI V4/V4.5 使用英文自然语言；NovelAI V3 使用英文 Tags。
                    </p>
                  </div>
+
+                   <!-- Extra Prompts Config (NovelAI Only) -->
+                   <div v-if="settingsStore.drawingConfig.providerType === 'novelai'" class="mt-4 grid grid-cols-2 gap-4">
+                     <div class="space-y-1">
+                       <label class="block text-sm font-bold text-izakaya-wood font-display">
+                         补充正面提示词
+                         <span class="text-xs font-normal text-izakaya-wood/50 ml-2">追加在生成内容后</span>
+                       </label>
+                       <textarea 
+                         v-model="settingsStore.drawingConfig.extraPositivePrompt" 
+                         rows="3"
+                         class="w-full px-3 py-2 bg-white/60 border border-izakaya-wood/20 rounded-md shadow-sm focus:outline-none focus:border-touhou-red/50 focus:ring-1 focus:ring-touhou-red/20 transition-all font-mono text-xs text-izakaya-wood placeholder:text-izakaya-wood/30 resize-y"
+                         placeholder="例如: high quality, masterpiece"
+                       ></textarea>
+                     </div>
+                     <div class="space-y-1">
+                       <label class="block text-sm font-bold text-izakaya-wood font-display">
+                         补充负面提示词
+                         <span class="text-xs font-normal text-izakaya-wood/50 ml-2">追加在生成内容后</span>
+                       </label>
+                       <textarea 
+                         v-model="settingsStore.drawingConfig.extraNegativePrompt" 
+                         rows="3"
+                         class="w-full px-3 py-2 bg-white/60 border border-izakaya-wood/20 rounded-md shadow-sm focus:outline-none focus:border-touhou-red/50 focus:ring-1 focus:ring-touhou-red/20 transition-all font-mono text-xs text-izakaya-wood placeholder:text-izakaya-wood/30 resize-y"
+                         placeholder="例如: lowres, bad anatomy"
+                       ></textarea>
+                     </div>
+                   </div>
 
                  <div class="mt-2 text-sm text-izakaya-wood/70 bg-pink-50/50 border border-pink-100 p-3 rounded text-justify font-serif">
                   <span class="font-bold text-pink-600 font-display">LLM #5 职责：</span> 
@@ -429,12 +541,27 @@ function handleVolumeChangeTest() {
                 <h4 class="font-bold text-izakaya-wood font-display mb-4">步骤2：绘图 API 配置</h4>
                 
                 <div class="grid grid-cols-1 gap-4">
+                  <!-- Provider Type Selection -->
+                  <div class="space-y-1">
+                    <label class="block text-sm font-bold text-izakaya-wood font-display">API 类型</label>
+                    <div class="flex gap-4">
+                      <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" v-model="settingsStore.drawingConfig.providerType" value="openai" class="accent-touhou-red">
+                        <span class="text-sm font-medium text-izakaya-wood">Nanobanana 格式</span>
+                      </label>
+                      <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" v-model="settingsStore.drawingConfig.providerType" value="novelai" class="accent-touhou-red">
+                        <span class="text-sm font-medium text-izakaya-wood">NovelAI 官方格式</span>
+                      </label>
+                    </div>
+                  </div>
+
                   <div class="space-y-1">
                     <label class="block text-sm font-bold text-izakaya-wood font-display">API Base URL</label>
                     <input 
                       type="text" 
                       v-model="settingsStore.drawingConfig.apiBaseUrl" 
-                      placeholder="e.g. https://api.openai.com/v1"
+                      :placeholder="settingsStore.drawingConfig.providerType === 'novelai' ? 'e.g. https://api.novelai.net/ai/generate-image' : 'e.g. https://api.openai.com/v1'"
                       class="w-full px-3 py-2 bg-white/60 border border-izakaya-wood/20 rounded-md shadow-sm focus:outline-none focus:border-touhou-red/50 focus:ring-1 focus:ring-touhou-red/20 transition-all font-mono text-sm text-izakaya-wood placeholder:text-izakaya-wood/30"
                     >
                   </div>
@@ -449,7 +576,8 @@ function handleVolumeChangeTest() {
                     >
                   </div>
 
-                  <div class="space-y-1">
+                  <!-- Nanobanana Specific: Model Fetcher -->
+                  <div v-if="settingsStore.drawingConfig.providerType === 'openai'" class="space-y-1">
                     <label class="block text-sm font-bold text-izakaya-wood font-display">模型名称 (Model)</label>
                     <div class="flex gap-2">
                       <select 
@@ -482,6 +610,121 @@ function handleVolumeChangeTest() {
                     </div>
                     <div v-else-if="isLoadingDrawingModels" class="mt-1 text-xs text-marisa-gold-dim font-medium">
                       正在获取模型列表...
+                    </div>
+                  </div>
+
+                  <!-- NovelAI Specific Fields -->
+                  <div v-else class="space-y-4 pt-2 border-t border-izakaya-wood/10">
+                    <div class="space-y-1">
+                        <label class="block text-sm font-bold text-izakaya-wood font-display flex justify-between items-center">
+                          <span>模型名称 (Model)</span>
+                          <button 
+                            type="button"
+                            @click.stop.prevent="testNovelAI"
+                            :disabled="isTestingNovelAI"
+                            class="text-[10px] px-2 py-0.5 bg-touhou-red/10 hover:bg-touhou-red/20 text-touhou-red border border-touhou-red/20 rounded transition-all flex items-center gap-1"
+                          >
+                            <div v-if="isTestingNovelAI" class="w-2 h-2 animate-spin rounded-full border border-touhou-red border-t-transparent"></div>
+                            {{ isTestingNovelAI ? '测试中...' : '测试模型连接' }}
+                          </button>
+                        </label>
+                        <div class="flex flex-col sm:flex-row gap-2">
+                          <select 
+                            v-model="settingsStore.drawingConfig.model" 
+                            class="flex-1 min-w-0 px-3 py-2 bg-white/60 border border-izakaya-wood/20 rounded-md shadow-sm focus:outline-none focus:border-touhou-red/50 focus:ring-1 focus:ring-touhou-red/20 transition-all font-mono text-sm text-izakaya-wood"
+                          >
+                            <option value="nai-diffusion-4.5-full">NovelAI Diffusion V4.5 Full</option>
+                            <option value="nai-diffusion-4.5-curated">NovelAI Diffusion V4.5 Curated</option>
+                            <option value="nai-diffusion-4-full">NovelAI Diffusion V4 Full</option>
+                            <option value="nai-diffusion-4-curated">NovelAI Diffusion V4 Curated</option>
+                            <option value="nai-diffusion-3">NovelAI Diffusion V3</option>
+                            <option value="nai-diffusion-furry-3">NovelAI Diffusion Furry V3</option>
+                            <option value="custom">-- 手动输入模型 ID --</option>
+                          </select>
+                          <input 
+                            v-if="isCustomNovelAIModel"
+                            type="text"
+                            v-model="settingsStore.drawingConfig.model"
+                            placeholder="输入模型 ID"
+                            class="flex-1 min-w-0 px-3 py-2 bg-white/60 border border-izakaya-wood/20 rounded-md shadow-sm focus:outline-none focus:border-touhou-red/50 focus:ring-1 focus:ring-touhou-red/20 transition-all font-mono text-sm text-izakaya-wood"
+                          >
+                        </div>
+                        
+                        <!-- Test Results -->
+                        <div v-if="novelAITestStatus === 'success'" class="text-[10px] text-green-600 flex items-center gap-1 mt-1 font-bold">
+                          <Check class="w-3 h-3" /> 连接成功！该模型 ID 可用。
+                        </div>
+                        <div v-else-if="novelAITestStatus === 'error'" class="text-[10px] text-touhou-red flex items-center gap-1 mt-1 font-bold">
+                          <AlertCircle class="w-3 h-3" /> {{ novelAITestError }}
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-1">
+                            <label class="block text-sm font-bold text-izakaya-wood font-display">宽度 (Width)</label>
+                            <select v-model.number="settingsStore.drawingConfig.width" class="w-full px-3 py-2 bg-white/60 border border-izakaya-wood/20 rounded-md font-mono text-sm text-izakaya-wood">
+                              <option :value="832">832 (竖屏)</option>
+                              <option :value="1216">1216 (横屏)</option>
+                              <option :value="1024">1024 (正方形)</option>
+                              <option :value="512">512 (小竖屏)</option>
+                              <option :value="768">768 (小横屏)</option>
+                              <option :value="640">640 (小正方形)</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="block text-sm font-bold text-izakaya-wood font-display">高度 (Height)</label>
+                            <select v-model.number="settingsStore.drawingConfig.height" class="w-full px-3 py-2 bg-white/60 border border-izakaya-wood/20 rounded-md font-mono text-sm text-izakaya-wood">
+                              <option :value="1216">1216 (竖屏)</option>
+                              <option :value="832">832 (横屏)</option>
+                              <option :value="1024">1024 (正方形)</option>
+                              <option :value="768">768 (小竖屏)</option>
+                              <option :value="512">512 (小横屏)</option>
+                              <option :value="640">640 (小正方形)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-1">
+                            <label class="block text-sm font-bold text-izakaya-wood font-display">采样步数 (Steps)</label>
+                            <input 
+                              type="number" 
+                              min="1" 
+                              max="50" 
+                              v-model.number="settingsStore.drawingConfig.steps" 
+                              class="w-full px-3 py-2 bg-white/60 border border-izakaya-wood/20 rounded-md font-mono text-sm text-izakaya-wood focus:outline-none focus:border-touhou-red/50 focus:ring-1 focus:ring-touhou-red/20 transition-all"
+                            >
+                            <p class="text-[10px] text-izakaya-wood/40 font-serif">范围: 1 - 50</p>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="block text-sm font-bold text-izakaya-wood font-display">提示词相关性 (Scale)</label>
+                            <input 
+                              type="number" 
+                              min="0" 
+                              max="31" 
+                              step="0.1" 
+                              v-model.number="settingsStore.drawingConfig.scale" 
+                              class="w-full px-3 py-2 bg-white/60 border border-izakaya-wood/20 rounded-md font-mono text-sm text-izakaya-wood focus:outline-none focus:border-touhou-red/50 focus:ring-1 focus:ring-touhou-red/20 transition-all"
+                            >
+                            <p class="text-[10px] text-izakaya-wood/40 font-serif">范围: 0 - 31.0</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="block text-sm font-bold text-izakaya-wood font-display">采样器 (Sampler)</label>
+                        <select v-model="settingsStore.drawingConfig.sampler" class="w-full px-3 py-2 bg-white/60 border border-izakaya-wood/20 rounded-md font-mono text-sm text-izakaya-wood">
+                            <option value="k_euler_ancestral">k_euler_ancestral (推荐)</option>
+                            <option value="k_euler">k_euler</option>
+                            <option value="k_dpmpp_2m">k_dpmpp_2m</option>
+                            <option value="k_dpmpp_sde">k_dpmpp_sde</option>
+                            <option value="k_dpmpp_2s_ancestral">k_dpmpp_2s_ancestral</option>
+                            <option value="k_dpmpp_3m_sde">k_dpmpp_3m_sde</option>
+                            <option value="k_dpm_2">k_dpm_2</option>
+                            <option value="k_dpm_2_ancestral">k_dpm_2_ancestral</option>
+                            <option value="k_uni_pc">k_uni_pc</option>
+                            <option value="k_uni_pc_bh2">k_uni_pc_bh2</option>
+                            <option value="ddim">ddim</option>
+                        </select>
                     </div>
                   </div>
                 </div>

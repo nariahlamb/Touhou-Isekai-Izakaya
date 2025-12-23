@@ -2,6 +2,11 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { db } from '@/db';
 import _ from 'lodash';
+import { 
+    DEFAULT_DRAWING_PROMPT_SYSTEM, 
+    DEFAULT_NOVELAI_V3_PROMPT_SYSTEM, 
+    DEFAULT_NOVELAI_V4_PROMPT_SYSTEM 
+} from '@/services/drawing';
 
 export interface LLMConfig {
   id: string;
@@ -114,27 +119,29 @@ export const useSettingsStore = defineStore('settings', () => {
   // Drawing Settings (Image Generation API)
   const drawingConfig = ref({
     enabled: false,
-    apiBaseUrl: '',
+    providerType: 'novelai' as 'openai' | 'novelai',
+    apiBaseUrl: 'https://api.novelai.net/ai/generate-image',
     apiKey: '',
-    model: 'gemini-2.5-flash-image-landscape',
-    systemPrompt: `你是一个《东方Project》RPG游戏的“插画导演”。
-你的任务是根据提供的剧情文本，编写一段用于 AI 绘图的提示词。
+    model: 'nai-diffusion-4-full',
+    // NovelAI Specifics
+    width: 832,
+    height: 1216,
+    steps: 28,
+    scale: 5.0,
+    sampler: 'k_euler_ancestral',
+    negativePrompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry',
+    
+    // Legacy field, kept for migration or fallback
+    systemPrompt: DEFAULT_DRAWING_PROMPT_SYSTEM,
+    
+    // Separated System Prompts
+    systemPromptOpenAI: DEFAULT_DRAWING_PROMPT_SYSTEM,
+    systemPromptNovelAIV3: DEFAULT_NOVELAI_V3_PROMPT_SYSTEM,
+    systemPromptNovelAIV4: DEFAULT_NOVELAI_V4_PROMPT_SYSTEM,
 
-# 编写规则
-1. **使用中文自然语言**：直接描述画面，无需使用标签或代码。
-2. **着重刻画人物与场景**：
-   - 大家在什么地方？环境光影如何？
-   - 每个人物穿的是什么？（需符合东方Project原作设定或当前剧情描述）
-   - 每个人物都在干什么？表情和动作是怎样的？
-3. **选取最具代表性的一幕**：如果剧情包含多段，只选取最精彩、最温馨或最关键的瞬间。
-4. **风格要求**：治愈系日系现代插画，带有浓厚的生活感与空气感。线条流畅柔和，色彩饱满但不刺眼。
-5. **无需输出任何解释**：只输出提示词文本本身。
-
-# 参考范例
-画面核心，是捕捉一幅褪去所有“解决异变”身份后，属于三个女孩最平凡、最温暖的瞬间。场景设定在博丽神社那略显陈旧的木质廊台（縁側）上。时值夏末初秋的傍晚，天空被落日染成一片温柔的橘红色。她们席地而坐，中间放着一个矮矮的矮桌，上面摆着几碟简单的家常菜。魔理沙正眉飞色舞地讲着什么，手舞足蹈；灵梦单手托腮，嘴角带着一抹淡淡的、发自内心的微笑看着她；早苗则侧耳倾听，眼神里充满了对这种生活的好奇与喜悦。光线利用侧逆光为她们的轮廓镶上一圈金边。
-
-# 输出格式
-直接输出提示词段落，不要包含Markdown代码块或其他前缀后缀。`
+    // Extra Prompts
+    extraPositivePrompt: '',
+    extraNegativePrompt: ''
   });
 
   async function loadSettings() {

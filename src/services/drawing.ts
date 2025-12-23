@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import JSZip from 'jszip';
 import { useSettingsStore } from '@/stores/settings';
 import { useToastStore } from '@/stores/toast';
 
@@ -19,25 +20,68 @@ for (const path in cgAssets) {
 
 export const DEFAULT_DRAWING_PROMPT_SYSTEM = `
 你是一个《东方Project》RPG游戏的“插画导演”。
-你的任务是根据提供的剧情文本，编写一段用于 AI 绘图的提示词。
+你的任务是根据提供的剧情文本，编写一段用于 AI 绘图的提示词（包括正面描述和负面描述）。
 
 # 编写规则
-1. **开头明确风格**：提示词开头必须包含“《东方Project》风格插画，幻想乡世界观”字样。
-2. **使用中文自然语言**：直接描述画面，无需使用标签或代码。
-3. **着重刻画人物与场景**：
-   - **严格遵循原作设定**：必须准确还原角色的外貌特征（如博丽灵梦的大蝴蝶结与露腋巫女服、雾雨魔理沙的黑白围裙与大帽子等）。
-   - 大家在什么地方？环境光影如何？
-   - 每个人物穿的是什么？
-   - 每个人物都在干什么？表情和动作是怎样的？
-4. **选取最具代表性的一幕**：如果剧情包含多段，只选取最精彩、最温馨或最关键的瞬间。
-5. **风格要求**：治愈系日系现代插画，带有浓厚的生活感与空气感。线条流畅柔和，色彩饱满但不刺眼。
-6. **无需输出任何解释**：只输出提示词文本本身。
+1. **正面提示词 (Prompt)**：
+   - 开头必须包含“《东方Project》风格插画，幻想乡世界观”字样。
+   - 使用中文自然语言，直接描述画面。
+   - 准确还原角色外貌（如博丽灵梦的大蝴蝶结、雾雨魔理沙的黑白围裙等）。
+   - 描述环境光影、人物动作与表情。
+2. **负面提示词 (Negative Prompt)**：
+   - 描述你不希望在画面中出现的内容（如：现代电器、违和感、低画质等）。
+3. **输出格式**：
+   - 请以 JSON 格式输出，包含 "prompt" 和 "negative_prompt" 两个字段。
 
 # 参考范例
-《东方Project》风格插画，幻想乡世界观。画面核心，是捕捉一幅褪去所有“解决异变”身份后，属于三个女孩最平凡、最温暖的瞬间。场景设定在博丽神社那略显陈旧的木质廊台（縁側）上。时值夏末初秋的傍晚，天空被落日染成一片温柔的橘红色。她们席地而坐，中间放着一个矮矮的矮桌，上面摆着几碟简单的家常菜。雾雨魔理沙正眉飞色舞地讲着什么，手舞足蹈；博丽灵梦单手托腮，嘴角带着一抹淡淡的、发自内心的微笑看着她；东风谷早苗则侧耳倾听，眼神里充满了对这种生活的好奇与喜悦。光线利用侧逆光为她们的轮廓镶上一圈金边。
+{
+  "prompt": "《东方Project》风格插画，幻想乡世界观。博丽灵梦和雾雨魔理沙在博丽神社的走廊上喝茶，背景是落日的余晖...",
+  "negative_prompt": "现代电器, 手机, 汽车, 低质量, 模糊, 断手"
+}
+`;
 
-# 输出格式
-直接输出提示词段落，不要包含Markdown代码块或其他前缀后缀。
+export const DEFAULT_NOVELAI_V3_PROMPT_SYSTEM = `
+You are an expert AI art prompter for NovelAI V3, specializing in Touhou Project style.
+Your task is to convert the given story text into a set of high-quality English tags.
+
+# Rules
+1. **Positive Prompt (prompt)**:
+   - Output English Tags Only, comma-separated.
+   - Quality keywords: 'best quality, amazing quality, very aesthetic, absurdres'.
+   - Style: 'touhou (style), anime style'.
+   - Character specifics: e.g., 'reimu hakurei, red bow, detached sleeves'.
+2. **Negative Prompt (negative_prompt)**:
+   - Common negative tags (e.g., 'lowres, bad anatomy, bad hands, text, error').
+3. **Output Format**:
+   - Provide the result in JSON format with "prompt" and "negative_prompt" keys.
+
+# Example
+{
+  "prompt": "best quality, amazing quality, very aesthetic, absurdres, 1girl, reimu hakurei, red bow, detached sleeves, sitting, drinking tea, touhou (style), anime style",
+  "negative_prompt": "lowres, bad anatomy, bad hands, text, error"
+}
+`;
+
+export const DEFAULT_NOVELAI_V4_PROMPT_SYSTEM = `
+You are an expert AI art prompter for NovelAI V4/V4.5, specializing in Touhou Project style.
+NovelAI V4.5 has advanced Natural Language understanding.
+
+# Rules
+1. **Positive Prompt (prompt)**:
+   - Use Natural Language (descriptive English sentences).
+   - Describe the scene, characters, and lighting vividly as if writing a caption.
+   - Include quality keywords at the beginning: 'best quality, amazing quality, very aesthetic, absurdres'.
+   - Mention style: 'touhou (style), anime style'.
+2. **Negative Prompt (negative_prompt)**:
+   - Common negative tags (e.g., 'lowres, bad anatomy, bad hands, text, error').
+3. **Output Format**:
+   - Provide the result in JSON format with "prompt" and "negative_prompt" keys.
+
+# Example
+{
+  "prompt": "best quality, amazing quality, very aesthetic, absurdres, Reimu Hakurei is sitting peacefully on the wooden porch of the Hakurei Shrine, holding a steaming cup of tea. The background shows a beautiful sunset over the mountains of Gensokyo. touhou (style), anime style",
+  "negative_prompt": "lowres, bad anatomy, bad hands, text, error"
+}
 `;
 
 export const drawingService = {
@@ -93,10 +137,25 @@ export const drawingService = {
   },
 
   // Step 1: Generate Prompt using LLM #5
-  async generatePrompt(storyText: string, location?: string, characters?: any[]): Promise<string> {
+  async generatePrompt(storyText: string, location?: string, characters?: any[]): Promise<{ prompt: string; negative_prompt: string }> {
     const settingsStore = useSettingsStore();
     const config = settingsStore.getEffectiveConfig('drawing');
-    const systemPrompt = settingsStore.drawingConfig.systemPrompt || DEFAULT_DRAWING_PROMPT_SYSTEM;
+    
+    // Select System Prompt based on provider type and model
+    const rawConfig = settingsStore.drawingConfig;
+    const isNovelAI = rawConfig.providerType === 'novelai';
+    const isV4 = isNovelAI && (rawConfig.model?.includes('nai-diffusion-4') || false);
+    
+    let systemPrompt = '';
+    if (isNovelAI) {
+        if (isV4) {
+            systemPrompt = rawConfig.systemPromptNovelAIV4 || DEFAULT_NOVELAI_V4_PROMPT_SYSTEM;
+        } else {
+            systemPrompt = rawConfig.systemPromptNovelAIV3 || DEFAULT_NOVELAI_V3_PROMPT_SYSTEM;
+        }
+    } else {
+        systemPrompt = rawConfig.systemPromptOpenAI || DEFAULT_DRAWING_PROMPT_SYSTEM;
+    }
 
     if (!config.apiKey) {
       throw new Error('未配置绘图提示词模型 (LLM #5) 的 API Key');
@@ -112,11 +171,6 @@ export const drawingService = {
 当前地点: ${location || '未知'}
 在场角色: ${characters?.map(c => {
     let info = c.name;
-    // Check if character has clothing info in the passed object (which comes from gameStore)
-    // Note: 'c' here is likely a simplified object {id, name} from gameLoop, 
-    // we need to access the full store state if possible, or assume 'c' has it if passed correctly.
-    // In gameLoop.ts, we passed: gameStore.state.npcs[id] || { id, name: id }
-    // So 'c' should be the full NPC object if available.
     if (c.clothing && c.clothing !== '未知' && c.clothing !== 'Unknown') {
         info += ` (着装参考：${c.clothing})`;
     }
@@ -135,31 +189,201 @@ ${storyText}
           { role: 'user', content: userContent }
         ],
         temperature: 0.7,
+        response_format: { type: 'json_object' }
       });
 
       let content = response.choices[0]?.message?.content || '';
       // Strip thoughts if any
       content = content.replace(/<(thinking|think)>[\s\S]*?<\/\1>/gi, '').trim();
       
-      return content;
+      try {
+        const parsed = JSON.parse(content);
+        return {
+          prompt: parsed.prompt || '',
+          negative_prompt: parsed.negative_prompt || ''
+        };
+      } catch (e) {
+        console.warn('[DrawingService] Failed to parse LLM response as JSON, falling back to raw content');
+        return {
+          prompt: content,
+          negative_prompt: ''
+        };
+      }
     } catch (error) {
       console.error('[DrawingService] Prompt generation failed:', error);
       throw error;
     }
   },
 
+  // Step 2b: NovelAI Generation
+  async generateImageNovelAI(prompt: string, negativePrompt: string, config: any): Promise<string> {
+      if (!config.apiKey) throw new Error("NovelAI API Key is missing");
+      
+      const baseUrl = config.apiBaseUrl || 'https://api.novelai.net/ai/generate-image';
+      
+      // Standard Official NovelAI Request Structure
+      const body = {
+          input: prompt, 
+          model: config.model || 'nai-diffusion-3',
+          action: 'generate',
+          parameters: {
+              width: config.width || 832,
+              height: config.height || 1216,
+              steps: config.steps || 28,
+              scale: config.scale || 5.0,
+              sampler: config.sampler || 'k_euler_ancestral',
+              negative_prompt: negativePrompt,
+              n_samples: 1,
+              ucPreset: 0,
+              qualityToggle: true,
+              sm: false,
+              sm_dyn: false,
+              dynamic_thresholding: false,
+              controlnet_strength: 1.0,
+              legacy_v3_extend: false,
+              add_original_image: false,
+              // Add a default seed if not provided to ensure consistency if needed
+              seed: Math.floor(Math.random() * 1000000000)
+          }
+      };
+
+      // Compatibility: Some proxies expect a flat structure
+      // We'll check if the user provided a custom URL that might be a proxy
+      const isOfficial = baseUrl.includes('novelai.net');
+      const requestBody = isOfficial ? body : {
+          ...body.parameters,
+          prompt: prompt,
+          model: body.model
+      };
+
+      const response = await fetch(baseUrl, {
+          method: 'POST',
+          headers: {
+              'Authorization': `Bearer ${config.apiKey}`,
+              'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+          const errText = await response.text();
+          let errorMsg = `NovelAI API Error (${response.status})`;
+          try {
+              const errJson = JSON.parse(errText);
+              errorMsg += `: ${errJson.message || errJson.error || errText}`;
+          } catch (e) {
+              errorMsg += `: ${errText}`;
+          }
+          throw new Error(errorMsg);
+      }
+
+      // Handle Response
+      const contentType = response.headers.get('content-type');
+      
+      // 1. ZIP Response (Official NovelAI returns a zip file)
+      if (contentType?.includes('application/zip') || contentType?.includes('application/x-zip-compressed')) {
+          const blob = await response.blob();
+          const zip = await JSZip.loadAsync(blob);
+          // Find the first image file
+          const files = Object.keys(zip.files);
+          const imageFile = files.find(f => f.endsWith('.png') || f.endsWith('.jpg') || f.endsWith('.webp'));
+          
+          if (!imageFile) throw new Error("No image found in NovelAI response zip");
+          
+          const imageBlob = await zip.file(imageFile)?.async('blob');
+          if (!imageBlob) throw new Error("Failed to extract image from zip");
+          
+          return new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(imageBlob);
+          });
+      }
+      
+      // 2. Direct Image Response
+      if (contentType?.includes('image/')) {
+          const blob = await response.blob();
+          return new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+          });
+      }
+
+      // 3. JSON Response (Usually error or unexpected)
+      const text = await response.text();
+      throw new Error(`Unexpected NovelAI response format (${contentType}): ${text.substring(0, 100)}`);
+  },
+
+  // Test NovelAI Connection
+  async testNovelAIConnection(config: any): Promise<boolean> {
+    if (!config.apiKey) throw new Error("API Key 不能为空");
+    
+    // For testing, we use a very minimal request to save Anlas/Points
+    // Official NAI doesn't have a simple 'ping' for images, so we try a small generation if possible
+    // or just a very fast check.
+    const baseUrl = config.apiBaseUrl || 'https://api.novelai.net/ai/generate-image';
+    
+    const testBody = {
+        input: "test", 
+        model: config.model || 'nai-diffusion-3',
+        action: 'generate',
+        parameters: {
+            width: 64,
+            height: 64,
+            steps: 1, // Minimum steps
+            n_samples: 1
+        }
+    };
+
+    try {
+        const response = await fetch(baseUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${config.apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(testBody)
+        });
+
+        if (response.status === 401) throw new Error("API Key 无效 (401)");
+        if (response.status === 404) throw new Error("接口地址或模型 ID 错误 (404)");
+        if (response.status === 400) {
+            const errText = await response.text();
+            if (errText.includes("model")) throw new Error(`模型 ID "${config.model}" 不被支持`);
+            throw new Error(`请求错误 (400): ${errText}`);
+        }
+
+        if (!response.ok) {
+            throw new Error(`连接失败 (${response.status})`);
+        }
+
+        return true;
+    } catch (e: any) {
+        throw e;
+    }
+  },
+
   // Step 2: Generate Image using Image API
-  async generateImage(prompt: string, referenceImages: string[] = []): Promise<string> {
+  async generateImage(prompt: string, negativePrompt: string, referenceImages: string[] = []): Promise<string> {
     const settingsStore = useSettingsStore();
     const config = settingsStore.drawingConfig;
 
     if (!config.enabled) return '';
+    
+    // Dispatch to NovelAI handler if selected
+    if (config.providerType === 'novelai') {
+        return this.generateImageNovelAI(prompt, negativePrompt, config);
+    }
+
     if (!config.apiKey || !config.apiBaseUrl) {
       throw new Error('未配置绘图 API (URL 或 Key)');
     }
 
     // Construct Multimodal Message
-    const content: any[] = [{ type: 'text', text: prompt }];
+    const content: any[] = [{ type: 'text', text: `Prompt: ${prompt}\nNegative Prompt: ${negativePrompt}` }];
     
     // Add reference images if any
     if (referenceImages && referenceImages.length > 0) {
@@ -169,7 +393,6 @@ ${storyText}
                 type: 'image_url',
                 image_url: { 
                     url: imgData 
-                    // detail: 'high' // Optional, some APIs support this
                 }
             });
         }
@@ -332,8 +555,9 @@ ${storyText}
   async process(storyText: string, location?: string, characters?: any[]) {
     const settingsStore = useSettingsStore();
     const toastStore = useToastStore();
+    const config = settingsStore.drawingConfig;
 
-    if (!settingsStore.drawingConfig.enabled) {
+    if (!config.enabled) {
       console.log('[DrawingService] Skipped: Feature disabled in settings');
       return null;
     }
@@ -341,18 +565,36 @@ ${storyText}
     try {
         console.log('[DrawingService] Starting generation...');
         
-        // 1. Generate Prompt
-        const prompt = await this.generatePrompt(storyText, location, characters);
-        console.log('[DrawingService] Generated Prompt:', prompt);
+        // 1. Generate Prompt from LLM
+        const { prompt: llmPrompt, negative_prompt: llmNegativePrompt } = await this.generatePrompt(storyText, location, characters);
+        console.log('[DrawingService] LLM Generated Prompt:', llmPrompt);
+        console.log('[DrawingService] LLM Generated Negative Prompt:', llmNegativePrompt);
         
-        // 1.5 Load Reference Images (CGs)
+        // 2. Combine with User Extra Prompts
+        const isNovelAI = config.providerType === 'novelai';
+        let finalPrompt = llmPrompt;
+        let finalNegativePrompt = llmNegativePrompt || (isNovelAI ? config.negativePrompt : '');
+
+        // Add user extra positive/negative prompts (NovelAI Only)
+        if (isNovelAI) {
+            if (config.extraPositivePrompt) {
+                finalPrompt = `${finalPrompt}, ${config.extraPositivePrompt}`;
+            }
+            
+            if (config.extraNegativePrompt) {
+                finalNegativePrompt = `${finalNegativePrompt}, ${config.extraNegativePrompt}`;
+            }
+        }
+
+        console.log('[DrawingService] Final Prompt:', finalPrompt);
+        console.log('[DrawingService] Final Negative Prompt:', finalNegativePrompt);
+        
+        // 3. Load Reference Images (CGs)
         const refImages: string[] = [];
         if (characters && characters.length > 0) {
             console.log(`[DrawingService] Checking for character CGs among: ${characters.map(c => c.name).join(', ')}`);
             for (const char of characters) {
-                // Try exact match
                 const cgUrl = characterCGMap[char.name];
-                
                 if (cgUrl) {
                     try {
                         console.log(`[DrawingService] Found CG for ${char.name}, loading...`);
@@ -362,18 +604,16 @@ ${storyText}
                     } catch (e) {
                         console.error(`[DrawingService] Failed to load CG for ${char.name}:`, e);
                     }
-                } else {
-                    console.log(`[DrawingService] No CG found for ${char.name}`);
                 }
             }
         }
 
-        // 2. Generate Image (with Reference Images)
-        const imageUrl = await this.generateImage(prompt, refImages);
+        // 4. Generate Image (with Reference Images)
+        const imageUrl = await this.generateImage(finalPrompt, finalNegativePrompt, refImages);
         console.log('[DrawingService] Generated Image URL:', imageUrl);
 
         return {
-            prompt,
+            prompt: finalPrompt,
             url: imageUrl
         };
     } catch (error) {
