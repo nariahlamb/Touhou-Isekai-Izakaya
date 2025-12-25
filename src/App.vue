@@ -367,6 +367,10 @@ function handleHelpAction(action: string) {
         statusCardRef.value.handleOpenFacility();
       }
       break;
+    case 'openMap':
+      isMapOpen.value = true;
+      audioManager.playPageFlip();
+      break;
     case 'highlightQuests':
     case 'highlightCharacters':
       // TODO: Maybe scroll to or highlight these sections?
