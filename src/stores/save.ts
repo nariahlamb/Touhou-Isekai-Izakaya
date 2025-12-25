@@ -137,20 +137,23 @@ export const useSaveStore = defineStore('save', () => {
   }
 
   async function exportSave(id: number): Promise<string> {
-    const saveSlot = await db.saveSlots.get(id);
+    const numericId = Number(id);
+    const saveSlot = await db.saveSlots.get(numericId);
     if (!saveSlot) throw new Error("Save not found");
 
-    const chats = await db.chats.where('saveSlotId').equals(id).toArray();
-    const memories = await db.memories.where('saveSlotId').equals(id).toArray();
-    const snapshots = await db.snapshots.where('saveSlotId').equals(id).toArray();
+    const chats = await db.chats.where('saveSlotId').equals(numericId).toArray();
+    const memories = await db.memories.where('saveSlotId').equals(numericId).toArray();
+    const snapshots = await db.snapshots.where('saveSlotId').equals(numericId).toArray();
+    const characters = await db.characters.toArray(); // Characters are global but needed for save consistency
 
     return JSON.stringify({
-      version: 1,
+      version: 2,
       timestamp: Date.now(),
-      saveSlot: { ...saveSlot, id: undefined }, // We don't need old saveSlot ID
-      chats, // Keep IDs for mapping
+      saveSlot: { ...saveSlot, id: undefined },
+      chats,
       memories,
-      snapshots
+      snapshots,
+      characters
     }, null, 2);
   }
 
@@ -158,12 +161,11 @@ export const useSaveStore = defineStore('save', () => {
     try {
       const data = JSON.parse(fileContent);
       
-      // Basic validation
       if (!data.saveSlot || !Array.isArray(data.chats)) {
         throw new Error("Invalid save file format");
       }
 
-      await db.transaction('rw', db.saveSlots, db.chats, db.memories, db.snapshots, async () => {
+      await db.transaction('rw', [db.saveSlots, db.chats, db.memories, db.snapshots, db.characters], async () => {
         // 1. Create new Save Slot
         const newSaveId = await db.saveSlots.add({
           ...data.saveSlot,
@@ -173,13 +175,22 @@ export const useSaveStore = defineStore('save', () => {
 
         // Map for Chat IDs (Old ID -> New ID)
         const chatIdMap = new Map<number, number>();
+        // Map for Snapshot IDs (Old ID -> New ID)
+        const snapshotIdMap = new Map<number, number>();
 
-        // 2. Import Chats
+        // 2. Import Characters (Global)
+        if (Array.isArray(data.characters)) {
+          for (const char of data.characters) {
+            await db.characters.put(char); // Use put to update existing or add new
+          }
+        }
+
+        // 3. Import Chats
         for (const chat of data.chats) {
             const oldId = chat.id;
             const newChatId = await db.chats.add({
                 ...chat,
-                id: undefined, // Let DB generate new ID
+                id: undefined,
                 saveSlotId: newSaveId
             }) as number;
             
@@ -188,35 +199,49 @@ export const useSaveStore = defineStore('save', () => {
             }
         }
 
-        // 3. Import Snapshots (depend on Chat IDs)
-        for (const snapshot of data.snapshots) {
-            const newChatId = snapshot.chatId ? chatIdMap.get(snapshot.chatId) : undefined;
-            
-            // If we can't map the chat ID, we might have an orphan snapshot. 
-            // We should probably still import it but warn? 
-            // Or if it's strictly linked, we assume map exists.
-            
-            // Note: snapshot.chatId is not optional in interface, but let's be safe.
-            if (snapshot.chatId && !newChatId) {
-                console.warn(`Skipping snapshot for missing chat ID ${snapshot.chatId}`);
-                continue;
-            }
+        // 4. Import Snapshots
+        if (Array.isArray(data.snapshots)) {
+          for (const snapshot of data.snapshots) {
+              const oldSnapshotId = snapshot.id;
+              const newChatId = snapshot.chatId ? chatIdMap.get(snapshot.chatId) : undefined;
+              
+              if (snapshot.chatId && snapshot.chatId !== 0 && !newChatId) {
+                  console.warn(`Skipping snapshot for missing chat ID ${snapshot.chatId}`);
+                  continue;
+              }
 
-            await db.snapshots.add({
-                ...snapshot,
-                id: undefined,
-                saveSlotId: newSaveId,
-                chatId: newChatId || snapshot.chatId // Fallback if no mapping (shouldn't happen)
-            });
+              const newSnapshotId = await db.snapshots.add({
+                  ...snapshot,
+                  id: undefined,
+                  saveSlotId: newSaveId,
+                  chatId: newChatId || snapshot.chatId
+              }) as number;
+
+              if (oldSnapshotId) {
+                snapshotIdMap.set(oldSnapshotId, newSnapshotId);
+              }
+          }
         }
 
-        // 4. Import Memories
-        for (const memory of data.memories) {
-            await db.memories.add({
-                ...memory,
-                id: undefined,
-                saveSlotId: newSaveId
+        // 5. Update Chat Messages with new Snapshot IDs
+        const newChats = await db.chats.where('saveSlotId').equals(newSaveId).toArray();
+        for (const chat of newChats) {
+          if (chat.snapshotId && snapshotIdMap.has(chat.snapshotId)) {
+            await db.chats.update(chat.id, {
+              snapshotId: snapshotIdMap.get(chat.snapshotId)
             });
+          }
+        }
+
+        // 6. Import Memories
+        if (Array.isArray(data.memories)) {
+          for (const memory of data.memories) {
+              await db.memories.add({
+                  ...memory,
+                  id: undefined,
+                  saveSlotId: newSaveId
+              });
+          }
         }
       });
       
