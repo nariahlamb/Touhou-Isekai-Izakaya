@@ -287,8 +287,7 @@ export const useSettingsStore = defineStore('settings', () => {
         
         // Use a transaction for safety
         await db.transaction('rw', [db.saveSlots, db.chats, db.snapshots, db.memories, db.characters], async () => {
-          // Clear existing data (optional, but safer for a "full restore")
-          // If we want to merge, we'd use .put() instead of .clear() + .bulkAdd()
+          // Clear existing data for a full restore
           await Promise.all([
             db.saveSlots.clear(),
             db.chats.clear(),
@@ -297,14 +296,15 @@ export const useSettingsStore = defineStore('settings', () => {
             db.characters.clear()
           ]);
 
-          if (gameData.saveSlots) await db.saveSlots.bulkAdd(gameData.saveSlots);
-          if (gameData.chats) await db.chats.bulkAdd(gameData.chats);
-          if (gameData.snapshots) await db.snapshots.bulkAdd(gameData.snapshots);
-          if (gameData.memories) await db.memories.bulkAdd(gameData.memories);
-          if (gameData.characters) await db.characters.bulkAdd(gameData.characters);
+          // Import data while preserving IDs
+          if (Array.isArray(gameData.saveSlots)) await db.saveSlots.bulkAdd(gameData.saveSlots);
+          if (Array.isArray(gameData.chats)) await db.chats.bulkAdd(gameData.chats);
+          if (Array.isArray(gameData.snapshots)) await db.snapshots.bulkAdd(gameData.snapshots);
+          if (Array.isArray(gameData.memories)) await db.memories.bulkAdd(gameData.memories);
+          if (Array.isArray(gameData.characters)) await db.characters.bulkAdd(gameData.characters);
         });
         
-        console.log('Game data imported successfully');
+        console.log('Game data imported successfully (Version:', config.version, ')');
       }
 
       await saveSettings();
