@@ -20,12 +20,15 @@ export const CHARACTER_NAME_TO_ID_MAP: Record<string, string> = {
   '魂魄妖梦': 'youmu',
   '妖梦': 'youmu',
   '蕾米莉亚·斯卡雷特': 'remilia',
+  '蕾米莉亚斯卡雷特': 'remilia',
   '蕾米莉亚': 'remilia',
   '蕾米': 'remilia',
   '芙兰朵露·斯卡雷特': 'flandre',
+  '芙兰朵露斯卡雷特': 'flandre',
   '芙兰朵露': 'flandre',
   '芙兰': 'flandre',
   '帕秋莉·诺蕾姬': 'patchouli',
+  '帕秋莉诺蕾姬': 'patchouli',
   '帕秋莉': 'patchouli',
   '红美铃': 'meiling',
   '琪露诺': 'cirno',
@@ -251,6 +254,63 @@ export function findAvatarImage(name: string, avatarMap: Record<string, any>): s
             // Check bidirectional inclusion
             if (name.includes(coreName) || coreName.includes(name)) {
                 return avatarMap[path] as string;
+            }
+        }
+    }
+    
+    return undefined;
+}
+
+/**
+ * Helper to find a Battle Sprite URL for a given character name.
+ * 
+ * @param name - Character name (e.g. "蕾米莉亚·斯卡雷特")
+ * @param spriteMap - The map of all available battle sprites (import.meta.glob results)
+ */
+export function findBattleSprite(name: string, spriteMap: Record<string, any>): string | undefined {
+    if (!name) return undefined;
+    
+    // Normalize name for matching (remove dots)
+    const normalizedName = name.replace(/[·・]/g, '');
+    
+    // 1. Try exact match
+    const directKey = `/src/assets/images/battle_sprites/${name}_战斗立绘.png`;
+    if (spriteMap[directKey]) return spriteMap[directKey] as string;
+
+    // 2. Try mapping via characterMapping
+    const characterId = CHARACTER_NAME_TO_ID_MAP[name] || CHARACTER_NAME_TO_ID_MAP[normalizedName];
+    if (characterId) {
+        // Find all names that map to this ID
+        const relatedNames = Object.entries(CHARACTER_NAME_TO_ID_MAP)
+            .filter(([_, id]) => id === characterId)
+            .map(([n, _]) => n);
+            
+        for (const relName of relatedNames) {
+            const relKey = `/src/assets/images/battle_sprites/${relName}_战斗立绘.png`;
+            if (spriteMap[relKey]) return spriteMap[relKey] as string;
+            
+            // Also try with dot-removed version of related name
+            const relNormalized = relName.replace(/[·・]/g, '');
+            const relNormKey = `/src/assets/images/battle_sprites/${relNormalized}_战斗立绘.png`;
+            if (spriteMap[relNormKey]) return spriteMap[relNormKey] as string;
+        }
+    }
+
+    // 3. Fuzzy match
+    const normalizedKeys = Object.keys(spriteMap);
+    for (const path of normalizedKeys) {
+        const fileName = path.split('/').pop()?.split('\\').pop();
+        if (!fileName) continue;
+        
+        const match = fileName.match(/^(.+)_战斗立绘\.png$/);
+        if (match && match[1]) {
+            const coreName = match[1];
+            const normalizedCore = coreName.replace(/[·・]/g, '');
+            
+            // Check bidirectional inclusion with normalization
+            if (name.includes(coreName) || coreName.includes(name) || 
+                normalizedName.includes(normalizedCore) || normalizedCore.includes(normalizedName)) {
+                return spriteMap[path] as string;
             }
         }
     }

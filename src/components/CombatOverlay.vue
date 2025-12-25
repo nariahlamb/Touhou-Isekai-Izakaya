@@ -1128,6 +1128,7 @@ import { useGameStore } from '@/stores/game';
 import { useToastStore } from '@/stores/toast';
 import { gameLoop } from '@/services/gameLoop';
 import { audioManager } from '@/services/audio';
+import { findBattleSprite } from '@/services/characterMapping';
 import defaultSprite from '@/assets/images/battle_sprites/其他角色.png';
 
 const gameStore = useGameStore();
@@ -1620,9 +1621,7 @@ const characterSprites = import.meta.glob('/src/assets/images/battle_sprites/*.p
 
 function getSpriteUrl(name?: string) {
     if (!name) return defaultSprite;
-    const path = `/src/assets/images/battle_sprites/${name}_战斗立绘.png`;
-    const found = characterSprites[path];
-    return (found as string) || defaultSprite;
+    return findBattleSprite(name, characterSprites) || defaultSprite;
 }
 
 import { getLevelCostReduction, addSpellExp, getCombatLevelCostReduction } from '@/utils/spellGrowth';
@@ -2511,6 +2510,18 @@ async function handleSpecialAction(skill: any) {
 async function handleTalk() {
   if (!talkInput.value.trim() || !player.value) return;
 
+  // Cost Check
+  const currentP = player.value.pPoints || 0;
+  const currentAP = player.value.actionPoints !== undefined ? player.value.actionPoints : 2;
+  if (currentP < 15) {
+      addPopup(player.value, 'P点不足', 'damage');
+      return;
+  }
+  if (currentAP < 2) {
+      addPopup(player.value, 'AP不足', 'damage');
+      return;
+  }
+
   // Debug Command: /debug buff
   if (talkInput.value.trim() === '/debug buff') {
       const debugBuff: Buff = {
@@ -2712,10 +2723,14 @@ async function handleTalk() {
     
     await sleep(2000);
     
-    // Deduct AP (Cost 2)
+    // Deduct Costs (AP: 2, P: 15)
     if (player.value) {
         const currentAP = player.value.actionPoints !== undefined ? player.value.actionPoints : 2;
-        updateCombatantState(player.value.id, { actionPoints: Math.max(0, currentAP - 2) });
+        const currentP = player.value.pPoints || 0;
+        updateCombatantState(player.value.id, { 
+            actionPoints: Math.max(0, currentAP - 2),
+            pPoints: Math.max(0, currentP - 15)
+        });
     }
     
     checkTurnEnd();
