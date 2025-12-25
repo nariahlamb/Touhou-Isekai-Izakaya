@@ -212,9 +212,10 @@ export const useSettingsStore = defineStore('settings', () => {
   // --- Export/Import Logic ---
   const CUSTOM_ORIGINS_KEY = 'izakaya_custom_origins';
 
-  function exportGlobalConfig() {
-    const config = {
-      version: 1,
+  async function exportGlobalConfig() {
+    // 1. Prepare global settings data
+    const config: any = {
+      version: 2, // Upgraded version to include game data
       timestamp: Date.now(),
       globalProvider: globalProvider.value,
       llmConfigs: llmConfigs.value,
@@ -224,7 +225,14 @@ export const useSettingsStore = defineStore('settings', () => {
         bgmVolume: bgmVolume.value,
         sfxVolume: sfxVolume.value,
       },
-      customOrigins: [] as any[]
+      customOrigins: [] as any[],
+      gameData: {
+        saveSlots: await db.saveSlots.toArray(),
+        chats: await db.chats.toArray(),
+        snapshots: await db.snapshots.toArray(),
+        memories: await db.memories.toArray(),
+        characters: await db.characters.toArray(),
+      }
     };
 
     // Load custom origins from localStorage
@@ -241,7 +249,7 @@ export const useSettingsStore = defineStore('settings', () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `izakaya-global-config-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `izakaya-full-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -250,9 +258,9 @@ export const useSettingsStore = defineStore('settings', () => {
     try {
       const config = JSON.parse(jsonStr);
       
+      // 1. Import Global Settings
       if (config.globalProvider) globalProvider.value = config.globalProvider;
       if (config.llmConfigs) {
-        // Merge with defaults to ensure completeness
         const mergedConfigs = _.cloneDeep(DEFAULT_LLM_CONFIGS);
         for (const key in config.llmConfigs) {
           if (mergedConfigs[key]) {
@@ -273,10 +281,36 @@ export const useSettingsStore = defineStore('settings', () => {
         localStorage.setItem(CUSTOM_ORIGINS_KEY, JSON.stringify(config.customOrigins));
       }
 
+      // 2. Import Game Data (if exists)
+      if (config.gameData) {
+        const { gameData } = config;
+        
+        // Use a transaction for safety
+        await db.transaction('rw', [db.saveSlots, db.chats, db.snapshots, db.memories, db.characters], async () => {
+          // Clear existing data (optional, but safer for a "full restore")
+          // If we want to merge, we'd use .put() instead of .clear() + .bulkAdd()
+          await Promise.all([
+            db.saveSlots.clear(),
+            db.chats.clear(),
+            db.snapshots.clear(),
+            db.memories.clear(),
+            db.characters.clear()
+          ]);
+
+          if (gameData.saveSlots) await db.saveSlots.bulkAdd(gameData.saveSlots);
+          if (gameData.chats) await db.chats.bulkAdd(gameData.chats);
+          if (gameData.snapshots) await db.snapshots.bulkAdd(gameData.snapshots);
+          if (gameData.memories) await db.memories.bulkAdd(gameData.memories);
+          if (gameData.characters) await db.characters.bulkAdd(gameData.characters);
+        });
+        
+        console.log('Game data imported successfully');
+      }
+
       await saveSettings();
       return true;
     } catch (e) {
-      console.error('Failed to import global config:', e);
+      console.error('Failed to import config/data:', e);
       return false;
     }
   }

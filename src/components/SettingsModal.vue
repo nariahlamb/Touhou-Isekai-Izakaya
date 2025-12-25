@@ -39,17 +39,19 @@ const novelAITestStatus = ref<'idle' | 'success' | 'error'>('idle');
 const novelAITestError = ref('');
 const importFileInput = ref<HTMLInputElement | null>(null);
 
-const handleExport = () => {
+const handleExport = async () => {
   try {
-    settingsStore.exportGlobalConfig();
-    toastStore.addToast({ message: "配置导出成功", type: "success" });
+    await settingsStore.exportGlobalConfig();
+    toastStore.addToast({ message: "完整备份导出成功 (包含配置与所有存档)", type: "success" });
   } catch (error) {
     toastStore.addToast({ message: "导出失败: " + error, type: "error" });
   }
 };
 
 const triggerImport = () => {
-  importFileInput.value?.click();
+  if (confirm('导入备份将覆盖当前所有的配置和存档数据！建议操作前先导出当前数据作为备份。是否继续？')) {
+    importFileInput.value?.click();
+  }
 };
 
 const handleImport = async (event: Event) => {
@@ -63,9 +65,13 @@ const handleImport = async (event: Event) => {
       const content = e.target?.result as string;
       const success = await settingsStore.importGlobalConfig(content);
       if (success) {
-        toastStore.addToast({ message: "配置导入成功，部分更改可能需要重启生效", type: "success" });
+        toastStore.addToast({ message: "数据恢复成功，配置与存档已还原", type: "success" });
+        // Optional: reload page to ensure all stores are in sync with new DB state
+        if (confirm('数据已还原。建议刷新页面以确保所有状态同步，是否立即刷新？')) {
+          window.location.reload();
+        }
       } else {
-        toastStore.addToast({ message: "导入失败：配置格式无效", type: "error" });
+        toastStore.addToast({ message: "导入失败：文件格式无效或损坏", type: "error" });
       }
     };
     reader.readAsText(file);

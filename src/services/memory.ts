@@ -1,4 +1,4 @@
-import { db, type MemoryEntry } from '@/db';
+import { db, type MemoryEntry, type ChatMessage } from '@/db';
 import { useGameStore } from '@/stores/game';
 import { useCharacterStore } from '@/stores/character';
 import { generateCompletion } from '@/services/llm';
@@ -156,6 +156,11 @@ export class MemoryService {
           if (a.type === 'INVENTORY') tags.push('物品', 'inventory');
         });
 
+        // [Fix] Prevent duplicates for variable changes
+        await db.memories.where('[saveSlotId+type+turnCount]')
+          .equals([saveSlotId, 'variable_change', turnCount])
+          .delete();
+
         await db.memories.add({
           saveSlotId,
           turnCount,
@@ -265,8 +270,11 @@ ${JSON.stringify(actions)}
 
       // Handle Alliance
       if (result.alliance && result.alliance.name) {
-         // Check if similar alliance already exists? Maybe just append.
-         // Or rely on user not to spam it.
+         // [Fix] Prevent duplicates for alliance
+         await db.memories.where('[saveSlotId+type+turnCount]')
+           .equals([saveSlotId, 'alliance', turnCount])
+           .delete();
+
          await db.memories.add({
            saveSlotId,
            turnCount,
@@ -285,6 +293,11 @@ ${JSON.stringify(actions)}
 
       // Handle Intelligence
       if (result.intelligence && result.intelligence.name) {
+         // [Fix] Prevent duplicates for intelligence
+         await db.memories.where('[saveSlotId+type+turnCount]')
+           .equals([saveSlotId, 'intelligence', turnCount])
+           .delete();
+
          await db.memories.add({
            saveSlotId,
            turnCount,
@@ -308,6 +321,68 @@ ${JSON.stringify(actions)}
       // Fallback: Just save raw dialogue summary if LLM fails? 
       // Or just skip.
     }
+  }
+
+  /**
+   * Manually retry memory extraction for a specific assistant message.
+   */
+  async retryExtraction(messageId: number) {
+    // 1. Fetch the assistant message
+    const assistantMsg = await db.chats.get(messageId);
+    if (!assistantMsg || assistantMsg.role !== 'assistant') {
+      throw new Error('无效的消息ID或消息不是AI回复');
+    }
+
+    // 2. Fetch the user message (preceding this assistant message)
+    const userMsg = await db.chats
+      .where('id')
+      .below(messageId)
+      .and((m: ChatMessage) => m.saveSlotId === assistantMsg.saveSlotId && m.role === 'user')
+      .last();
+    
+    if (!userMsg) {
+      throw new Error('找不到关联的用户输入');
+    }
+
+    // 3. Fetch the snapshot
+    if (!assistantMsg.snapshotId) {
+      throw new Error('该轮次没有关联的状态快照，无法重新生成记忆');
+    }
+    const snapshot = await db.snapshots.get(assistantMsg.snapshotId);
+    if (!snapshot) {
+      throw new Error('快照已丢失');
+    }
+
+    const gameState = JSON.parse(snapshot.gameState);
+    
+    // 4. Extract actions from debugLog
+    let actions: any[] = [];
+    if (assistantMsg.debugLog?.logicOutput) {
+      try {
+        const logicResult = JSON.parse(assistantMsg.debugLog.logicOutput);
+        actions = logicResult.actions || [];
+      } catch (e) {
+        console.error('Failed to parse logic output:', e);
+      }
+    }
+
+    // 5. Call extractAndSave
+    return await this.extractAndSave(
+      assistantMsg.saveSlotId,
+      gameState.system.turn_count,
+      { name: gameState.player.name, input: userMsg.content },
+      assistantMsg.content,
+      actions,
+      {
+        date: gameState.player.date,
+        time: gameState.player.time,
+        location: gameState.player.location,
+        characters: gameState.system.current_scene_npcs.map((id: string) => {
+           const npc = gameState.npcs[id];
+           return npc ? npc.name : id;
+        })
+      }
+    );
   }
 
   /**

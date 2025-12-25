@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { type ChatMessage } from '@/db';
-import { User, Bot, Trash2, Bug, Copy, Edit, MoreVertical, Terminal, X } from 'lucide-vue-next';
+import { User, Bot, Trash2, Bug, Copy, Edit, MoreVertical, Terminal, X, RefreshCw } from 'lucide-vue-next';
 import { useChatStore } from '@/stores/chat';
 import { useGameStore } from '@/stores/game';
 import { useConfirm } from '@/utils/confirm';
 import { useToastStore } from '@/stores/toast';
 import { parseMarkdown } from '@/utils/markdown';
+import { memoryService } from '@/services/memory';
 
 const props = defineProps<{
   message: ChatMessage;
@@ -18,6 +19,7 @@ const { confirm } = useConfirm();
 const toastStore = useToastStore();
 const showDebug = ref(false);
 const isEditing = ref(false);
+const isRegenerating = ref(false);
 const editContent = ref('');
 const showActionMenu = ref(false);
 const closeMenuTimer = ref<number | null>(null);
@@ -93,6 +95,24 @@ function handleCancelEdit() {
 async function handleDelete() {
   if (await confirm('确定要删除本轮及之后的所有对话吗？（将删除此轮及后续所有消息，并回滚状态）', { destructive: true })) {
     chatStore.deleteTurn(props.message.id);
+  }
+}
+
+async function handleRegenerateMemory() {
+  if (isRegenerating.value) return;
+  
+  if (await confirm('确定要重新生成本轮记忆吗？这将再次调用 AI 进行总结，并覆盖已有的记忆条目。')) {
+    try {
+      isRegenerating.value = true;
+      await memoryService.retryExtraction(props.message.id);
+      toastStore.addToast('记忆已成功重新生成', 'success');
+      showActionMenu.value = false;
+    } catch (err: any) {
+      console.error('重新生成记忆失败:', err);
+      toastStore.addToast(`生成失败: ${err.message}`, 'error');
+    } finally {
+      isRegenerating.value = false;
+    }
   }
 }
 </script>
@@ -279,6 +299,13 @@ async function handleDelete() {
                   <Bug class="w-4 h-4" :class="showDebug ? 'text-touhou-red' : 'text-izakaya-wood/40 group-hover/item:text-touhou-red'" />
                   <span>调试信息</span>
                   <div v-if="!hasDebugLog" class="ml-auto text-[10px] text-izakaya-wood/30">(空)</div>
+                </button>
+
+                <button @click.stop="handleRegenerateMemory" 
+                        class="w-full px-3 py-2 text-sm text-left hover:bg-touhou-red/5 flex items-center gap-2 transition-colors group/item text-izakaya-wood"
+                        :disabled="isRegenerating">
+                  <RefreshCw class="w-4 h-4 text-izakaya-wood/40 group-hover/item:text-touhou-red" :class="{ 'animate-spin': isRegenerating }" />
+                  <span>{{ isRegenerating ? '更新中...' : '更新记忆条目' }}</span>
                 </button>
               </template>
               
