@@ -671,12 +671,19 @@ class GameLoopService {
       // 1. Generate Narrative via Logic Model (Narrator Mode)
       // This is a separate API call as requested
       console.log('[GameLoop] Calling generateCombatNarrative...');
-      const narrative = await logicService.generateCombatNarrative(resultSummary, combatants, contextText);
-      console.log('[GameLoop] Narrative received, length:', narrative?.length || 0);
+      let narrative = await logicService.generateCombatNarrative(resultSummary, combatants, contextText);
+      
+      // Secondary fallback check
+      if (!narrative || narrative.trim() === '') {
+        console.warn('[GameLoop] Received empty narrative from LogicService. Using emergency fallback.');
+        narrative = `(系统提示：由于技术原因，战斗润色描写失败。以下是战斗原始信息)\n${resultSummary}`;
+      }
+      
+      console.log('[GameLoop] Narrative received, final length:', narrative.length);
       
       // 2. Construct User Action for Story Model
       const content = `【战斗回放】\n${narrative}\n\n(请承接以上战斗结果，继续推进剧情)`;
-      console.log('[GameLoop] Final content for handleUserAction:', content);
+      console.log('[GameLoop] Final content constructed for handleUserAction.');
       
       // 3. Proceed with standard User Action handling
       this.currentStage.value = 'idle'; // Reset stage before calling handleUserAction as it sets its own stages

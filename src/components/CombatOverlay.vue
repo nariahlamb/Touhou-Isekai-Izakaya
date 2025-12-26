@@ -3371,7 +3371,10 @@ function closeCombat() {
 
   // Sync Player
   if (player.value) {
-    // 战斗胜利全符卡经验加成
+    let expGain = 0;
+    let logMsg = '';
+
+    // 1. Spell Card EXP
     if (gameResult.value === 'win' && player.value.spellCards) {
         let levelUpMsg = '';
         player.value.spellCards.forEach(spell => {
@@ -3381,10 +3384,33 @@ function closeCombat() {
              }
         });
         if (levelUpMsg) {
-            addLog(`【系统】战斗胜利！所有符卡获得50点经验。${levelUpMsg}`);
+            logMsg += `【系统】战斗胜利！所有符卡获得50点经验。${levelUpMsg}\n`;
         } else {
-             addLog(`【系统】战斗胜利！所有符卡获得50点经验。`);
+            logMsg += `【系统】战斗胜利！所有符卡获得50点经验。\n`;
         }
+    }
+
+    // 2. Combat Proficiency EXP (Talent Points are awarded inside GameStore.applyAction)
+    if (gameResult.value === 'win') {
+        // Win: 200-800 exp
+        expGain = Math.floor(Math.random() * 601) + 200;
+    } else {
+        // Loss/Flee: 50-100 exp
+        expGain = Math.floor(Math.random() * 51) + 50;
+    }
+
+    if (expGain > 0) {
+        logMsg += `【系统】获得战斗熟练度经验: ${expGain} 点。`;
+        gameStore.applyAction({
+            type: 'UPDATE_PLAYER',
+            field: 'combatExp',
+            op: 'add',
+            value: expGain
+        });
+    }
+
+    if (logMsg) {
+        addLog(logMsg);
     }
 
     gameStore.updatePlayer({ 
