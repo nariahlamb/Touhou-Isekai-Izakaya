@@ -145,9 +145,15 @@
         </div>
       </div>
 
-      <div class="controls-hint">
+      <div class="controls-hint hidden md:block">
         WASD / Arrow Keys to Move | F / Space to Interact
       </div>
+
+      <!-- Virtual Controls for Mobile -->
+      <VirtualControls
+        @move="handleVirtualMove"
+        @action="handleVirtualAction"
+      />
     </div>
   </div>
 </template>
@@ -160,6 +166,7 @@ import { useGameStore } from '@/stores/game';
 import { useToastStore } from '@/stores/toast';
 import { generateCustomerDialogue, evaluateDish } from '@/services/management/CustomerService';
 import CookingInterface from './CookingInterface.vue';
+import VirtualControls from './VirtualControls.vue';
 import type { Item, Customer, CookingSession } from '@/types/management';
 
 const gameStore = useGameStore();
@@ -653,6 +660,19 @@ onUnmounted(() => {
 const closeGame = () => {
   emit('close');
   // In real implementation, this would trigger the "End of Day" logic
+};
+
+// Virtual controls handlers for mobile
+const handleVirtualMove = (direction: { x: number; y: number }) => {
+  if (scene) {
+    scene.setVirtualInput(direction.x, direction.y);
+  }
+};
+
+const handleVirtualAction = () => {
+  if (scene) {
+    scene.triggerInteraction();
+  }
 };
 </script>
 

@@ -104,6 +104,22 @@ Memories are stored in IndexedDB with types:
 - `alliance`: Long-term partnerships
 - `intelligence`: World secrets discovered
 
+## Git Configuration
+
+This is a fork of `YoKONCy/touhou-isekai-izakaya`. Credentials stored in `.git-credentials` (gitignored).
+
+```bash
+# Push changes (use stored credentials)
+git -c credential.helper='store --file=.git-credentials' push origin main
+
+# Pull changes
+git -c credential.helper='store --file=.git-credentials' pull origin main
+
+# Sync from upstream (original repo)
+git fetch upstream
+git merge upstream/main
+```
+
 ## Path Aliases
 
 The project uses `@/` as an alias for `src/` directory (configured in `vite.config.ts` and `tsconfig.app.json`).
