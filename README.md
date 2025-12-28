@@ -56,6 +56,7 @@
 | 🏗️ | **Architecture** - 系统架构与技术栈 | [Jump](#️-architecture) |
 | ⚔️ | **Combat System** - 策略弹幕战斗 | [Jump](#-combat-system) |
 | 🚀 | **Quick Start** - 快速开始指南 | [Jump](#-quick-start) |
+| 🖼️ | **AI Drawing** - AI 绘图与隐私说明 | [Jump](#-ai-drawing-privacy) |
 | 📅 | **Roadmap** - 开发计划与待办 | [Jump](#-roadmap) |
 | ⚠️ | **Disclaimer** - 版权与声明 | [Jump](#-disclaimer) |
 
@@ -339,16 +340,35 @@ graph TD
 
 <br/>
 
+## 🖼️ AI Drawing Privacy
+
+本项目支持使用 **NovelAI** 或 **OpenAI** 生成剧情插画。为了保障您的隐私与安全，请知悉以下说明：
+
+1. **API Key 安全性**:
+   - 您的 API Key **仅存储在浏览器本地** (`localStorage`)，不会上传至本项目开发者的服务器。
+   - 本项目是纯前端 Web 应用，不具备后端数据库存储功能。
+
+2. **中转服务器 (Proxy) 说明**:
+   - 由于浏览器跨域 (CORS) 限制，直接从网页调用 NovelAI API 通常会失败。因此，本项目默认提供了一个基于 **Cloudflare Workers** 的中转地址。
+   - 该中转服务仅负责 **透传 (Forwarding)** 您的请求，即：将请求转发给 NovelAI 官方服务器并将响应返回给您的浏览器。
+   - **中转服务器不会记录或存储** 您的 API Key、提示词 (Prompt) 或生成的图像。Cloudflare Workers 的无服务器架构保证了处理过程的瞬时性与私密性。
+
+3. **风险提示**:
+   - 尽管默认中转服务是安全的，但如果您对隐私有极高要求，可以随时在“设置”中修改为自己的中转服务器地址。
+   - 请务必妥善保管您的 API Key，不要在不受信任的环境中输入。
+
+<br/>
+
+<!-- 动态分隔线 -->
+<img src="https://user-images.githubusercontent.com/73097560/115834477-dbab4500-a447-11eb-908a-139a6edaec5c.gif" width="100%">
+
+<br/>
+
 ## 📅 Roadmap
 
-- [x] **基础架构**: Vue3 + Vite + Pinia + Dexie
-- [x] **四重 LLM 架构**: Storyteller + Logic + Scribe + Misc
-- [x] **长记忆系统**: Scribe-Retrieval Mechanism
-- [x] **地图与经营**: LLM Procedural Generation
 - [ ] **角色立绘**: 施工中... (6枚差分/人)
 - [ ] **角色像素绘**: 施工中... (用于小游戏)
 - [ ] **店铺经营 V2.0**: 自由装修与高级经营
-- [ ] **难度配置**: 存档难度分级
 - [ ] **2D 探索小游戏**: 俯视角 RPG 模式
 
 <br/>

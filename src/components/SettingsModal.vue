@@ -115,14 +115,15 @@ watch(() => props.isOpen, (newVal) => {
 
 watch(() => settingsStore.drawingConfig.providerType, (newVal) => {
   if (newVal === 'novelai') {
+    // If the URL is empty or the default OpenAI one, set to the CF proxy (which works for CORS)
     if (!settingsStore.drawingConfig.apiBaseUrl || settingsStore.drawingConfig.apiBaseUrl.includes('openai.com')) {
-      settingsStore.drawingConfig.apiBaseUrl = 'https://api.novelai.net/ai/generate-image';
+      settingsStore.drawingConfig.apiBaseUrl = 'https://nai-proxy.2752026184.workers.dev/ai/generate-image';
     }
     if (!settingsStore.drawingConfig.model) {
       settingsStore.drawingConfig.model = 'nai-diffusion-4-full';
     }
   } else if (newVal === 'openai') {
-    if (!settingsStore.drawingConfig.apiBaseUrl || settingsStore.drawingConfig.apiBaseUrl.includes('novelai.net')) {
+    if (!settingsStore.drawingConfig.apiBaseUrl || settingsStore.drawingConfig.apiBaseUrl.includes('novelai.net') || settingsStore.drawingConfig.apiBaseUrl.includes('workers.dev')) {
       settingsStore.drawingConfig.apiBaseUrl = 'https://api.openai.com/v1';
     }
   }
@@ -223,7 +224,17 @@ function handleTabChange(id: any) {
 }
 
 async function loadDrawingModels() {
-  const { apiBaseUrl, apiKey } = settingsStore.drawingConfig;
+  const { apiBaseUrl, apiKey, providerType } = settingsStore.drawingConfig;
+  
+  // Only fetch models for OpenAI/Nanobanana providers. 
+  // NovelAI uses fixed model IDs.
+  if (providerType !== 'openai') {
+    drawingModels.value = [];
+    drawingFetchError.value = '';
+    drawingFetchSuccess.value = false;
+    return;
+  }
+
   if (!apiBaseUrl || !apiKey) {
     drawingModels.value = [];
     drawingFetchError.value = '';
@@ -256,12 +267,29 @@ function refreshDrawingModels() {
 
 // Watch for changes in drawing config to auto-load models
 watch(
-  () => [settingsStore.drawingConfig.apiBaseUrl, settingsStore.drawingConfig.apiKey],
-  ([newUrl, newKey]) => {
-    if (newUrl && newKey) {
-      // Debounce slightly or just load? LLMConfigPanel loads immediately on watcher but debounces save.
-      // We'll just load.
+  () => [settingsStore.drawingConfig.apiBaseUrl, settingsStore.drawingConfig.apiKey, settingsStore.drawingConfig.providerType],
+  ([newUrl, newKey, newType]) => {
+    if (newUrl && newKey && newType === 'openai') {
       loadDrawingModels();
+    }
+  }
+);
+
+// Auto-adjust parameters for NovelAI V4
+watch(
+  () => [settingsStore.drawingConfig.model, settingsStore.drawingConfig.providerType],
+  ([newModel, newType]) => {
+    if (newType === 'novelai' && newModel && typeof newModel === 'string' && newModel.includes('nai-diffusion-4')) {
+      // Auto-switch to V4 recommended sampler if currently on an old one
+      const v3Samplers = ['k_euler_ancestral', 'k_euler', 'k_dpmpp_2m', 'k_dpmpp_sde', 'k_dpmpp_2s_ancestral'];
+      if (v3Samplers.includes(settingsStore.drawingConfig.sampler)) {
+        settingsStore.drawingConfig.sampler = 'proxi_euler_ancestral';
+      }
+      
+      // V4 usually works better with higher steps (default 28)
+      if (settingsStore.drawingConfig.steps < 28) {
+        settingsStore.drawingConfig.steps = 28;
+      }
     }
   }
 );
@@ -269,8 +297,8 @@ watch(
 const isCustomNovelAIModel = computed(() => {
   const model = settingsStore.drawingConfig.model;
   const standardModels = [
-    'nai-diffusion-4.5-full', 
-    'nai-diffusion-4.5-curated', 
+    'nai-diffusion-4-5-full', 
+    'nai-diffusion-4-5-curated', 
     'nai-diffusion-4-full', 
     'nai-diffusion-4-curated', 
     'nai-diffusion-3', 
@@ -628,11 +656,12 @@ function handleVolumeChangeTest() {
                     <input 
                       type="text" 
                       v-model="settingsStore.drawingConfig.apiBaseUrl" 
-                      :placeholder="settingsStore.drawingConfig.providerType === 'novelai' ? 'e.g. https://api.novelai.net/ai/generate-image' : 'e.g. https://api.openai.com/v1'"
+                      :placeholder="settingsStore.drawingConfig.providerType === 'novelai' ? 'e.g. https://nai-proxy.2752026184.workers.dev/ai/generate-image' : 'e.g. https://api.openai.com/v1'"
                       class="w-full px-3 py-2 bg-white/60 border border-izakaya-wood/20 rounded-md shadow-sm focus:outline-none focus:border-touhou-red/50 focus:ring-1 focus:ring-touhou-red/20 transition-all font-mono text-sm text-izakaya-wood placeholder:text-izakaya-wood/30"
                     >
-                    <p v-if="settingsStore.drawingConfig.providerType === 'novelai'" class="text-[10px] text-touhou-red/70 mt-1">
-                      ⚠️ 浏览器直接访问官方接口会触发 CORS 错误，建议使用反向代理。
+                    <p v-if="settingsStore.drawingConfig.providerType === 'novelai'" class="text-[10px] text-touhou-red/70 mt-1 leading-relaxed">
+                      ⚠️ 浏览器直接访问官方接口会触发 CORS 错误。<br>
+                      推荐方案：使用 Cloudflare Workers 搭建免费中转代理，或使用支持跨域的反向代理地址。
                     </p>
                   </div>
                   
@@ -703,8 +732,8 @@ function handleVolumeChangeTest() {
                             v-model="settingsStore.drawingConfig.model" 
                             class="flex-1 min-w-0 px-3 py-2 bg-white/60 border border-izakaya-wood/20 rounded-md shadow-sm focus:outline-none focus:border-touhou-red/50 focus:ring-1 focus:ring-touhou-red/20 transition-all font-mono text-sm text-izakaya-wood"
                           >
-                            <option value="nai-diffusion-4.5-full">NovelAI Diffusion V4.5 Full</option>
-                            <option value="nai-diffusion-4.5-curated">NovelAI Diffusion V4.5 Curated</option>
+                            <option value="nai-diffusion-4-5-full">NovelAI Diffusion V4.5 Full</option>
+                            <option value="nai-diffusion-4-5-curated">NovelAI Diffusion V4.5 Curated</option>
                             <option value="nai-diffusion-4-full">NovelAI Diffusion V4 Full</option>
                             <option value="nai-diffusion-4-curated">NovelAI Diffusion V4 Curated</option>
                             <option value="nai-diffusion-3">NovelAI Diffusion V3</option>
@@ -783,7 +812,9 @@ function handleVolumeChangeTest() {
                     <div class="space-y-1">
                         <label class="block text-sm font-bold text-izakaya-wood font-display">采样器 (Sampler)</label>
                         <select v-model="settingsStore.drawingConfig.sampler" class="w-full px-3 py-2 bg-white/60 border border-izakaya-wood/20 rounded-md font-mono text-sm text-izakaya-wood">
-                            <option value="k_euler_ancestral">k_euler_ancestral (推荐)</option>
+                            <option value="proxi_euler_ancestral">proxi_euler_ancestral (V4 推荐)</option>
+                            <option value="proxi_euler">proxi_euler (V4 极速)</option>
+                            <option value="k_euler_ancestral">k_euler_ancestral (V3 推荐)</option>
                             <option value="k_euler">k_euler</option>
                             <option value="k_dpmpp_2m">k_dpmpp_2m</option>
                             <option value="k_dpmpp_sde">k_dpmpp_sde</option>

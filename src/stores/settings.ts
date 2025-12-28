@@ -121,7 +121,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const drawingConfig = ref({
     enabled: false,
     providerType: 'novelai' as 'openai' | 'novelai',
-    apiBaseUrl: 'https://api.novelai.net/ai/generate-image',
+    apiBaseUrl: 'https://nai-proxy.2752026184.workers.dev/ai/generate-image',
     apiKey: '',
     model: 'nai-diffusion-4-full',
     // NovelAI Specifics
@@ -180,7 +180,33 @@ export const useSettingsStore = defineStore('settings', () => {
       if (settings.bgmVolume !== undefined) bgmVolume.value = settings.bgmVolume;
       if (settings.sfxVolume !== undefined) sfxVolume.value = settings.sfxVolume;
       if (settings.drawingConfig) {
-        drawingConfig.value = { ...drawingConfig.value, ...settings.drawingConfig };
+        const mergedConfig = { ...drawingConfig.value, ...settings.drawingConfig };
+        
+        // Migration: Model ID cleanup
+        const modelMap: Record<string, string> = {
+          'NovelAI Diffusion V4.5 Full': 'nai-diffusion-4-5-full',
+          'NovelAI Diffusion V4.5 Curated': 'nai-diffusion-4-5-curated',
+          'NovelAI Diffusion V4 Full': 'nai-diffusion-4-full',
+          'NovelAI Diffusion V4 Curated': 'nai-diffusion-4-curated',
+          'NovelAI Diffusion V3': 'nai-diffusion-3',
+          'NovelAI Diffusion Furry V3': 'nai-diffusion-furry-3',
+          'nai-diffusion-4.5-full': 'nai-diffusion-4-5-full',
+          'nai-diffusion-4.5-curated': 'nai-diffusion-4-5-curated'
+        };
+        
+        const mappedModel = mergedConfig.model ? modelMap[mergedConfig.model] : undefined;
+        if (mappedModel) {
+          mergedConfig.model = mappedModel;
+        }
+
+        // Migration: If the user was using the old official URL, update it to the new CF proxy URL
+        const isOfficialUrl = mergedConfig.apiBaseUrl === 'https://api.novelai.net/ai/generate-image' || 
+                             mergedConfig.apiBaseUrl === 'https://image.novelai.net/ai/generate-image';
+                             
+        if (mergedConfig.providerType === 'novelai' && isOfficialUrl) {
+          mergedConfig.apiBaseUrl = 'https://nai-proxy.2752026184.workers.dev/ai/generate-image';
+        }
+        drawingConfig.value = mergedConfig;
       }
 
       if (settings.theme) theme.value = settings.theme;

@@ -483,7 +483,7 @@ export const GUIDE_CONTENT: GuideSection[] = [
     - **NovelAI 官方格式**: 直接连接 NovelAI 官方服务。
 - **Base URL**: 
     - Nanobanana 需填入对应的 Base URL。
-    - NovelAI 默认使用官方地址 \`https://api.novelai.net/ai/generate-image\`。
+    - NovelAI 默认使用官方地址 \`https://image.novelai.net/ai/generate-image\`。
 - **模型名称 (Model)**: 
     - NovelAI 支持内置的 \`nai-diffusion-4-full\` 等模型，也支持手动输入自定义模型 ID。
 
@@ -495,10 +495,10 @@ export const GUIDE_CONTENT: GuideSection[] = [
 ### 常见问题排查 (Troubleshooting)
 
 **Q: 提示 CORS 跨域错误或请求失败怎么办？**
-- **原因**：NovelAI 官方接口 (\`api.novelai.net\`) 不允许浏览器直接调用。
+- **原因**：NovelAI 官方接口 (\`image.novelai.net\`) 不允许浏览器直接调用。
 - **解决方法**：
     1. **使用代理**：在“API Base URL”中填入一个支持 NovelAI 的反向代理地址。
-    2. **CORS 转发**：您可以使用类似于 \`https://cors-anywhere.azm.workers.dev/https://api.novelai.net/ai/generate-image\` 的格式（注意：请确保代理可信）。
+    2. **CORS 转发**：您可以使用类似于 \`https://cors-anywhere.azm.workers.dev/https://image.novelai.net/ai/generate-image\` 的格式（注意：请确保代理可信）。
     3. **浏览器插件**：安装“Allow CORS”等浏览器插件（仅推荐本地调试使用）。
 
 > **提示**：如果您暂时没有绘图 API，请关闭该功能（默认关闭）。

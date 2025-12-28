@@ -85,6 +85,28 @@ NovelAI V4.5 has advanced Natural Language understanding.
 `;
 
 export const drawingService = {
+  // Sanitize model ID to handle dots in V4.5 models
+  // NovelAI uses hyphens in API calls but dots in display/config
+  // e.g. "nai-diffusion-4.5-full" -> "nai-diffusion-4-5-full"
+  sanitizeModelId(modelId: string): string {
+    const modelMap: Record<string, string> = {
+      'NovelAI Diffusion V4.5 Full': 'nai-diffusion-4-5-full',
+      'NovelAI Diffusion V4.5 Curated': 'nai-diffusion-4-5-curated',
+      'NovelAI Diffusion V4 Full': 'nai-diffusion-4-full',
+      'NovelAI Diffusion V4 Curated': 'nai-diffusion-4-curated',
+      'NovelAI Diffusion V3': 'nai-diffusion-3',
+      'NovelAI Diffusion Furry V3': 'nai-diffusion-furry-3',
+      'nai-diffusion-4.5-full': 'nai-diffusion-4-5-full',
+      'nai-diffusion-4.5-curated': 'nai-diffusion-4-5-curated'
+    };
+    let sanitized = modelMap[modelId] || modelId;
+    // Final safety: Replace dots with hyphens for any nai-diffusion-4.x model
+    if (sanitized.includes('nai-diffusion-4.')) {
+        sanitized = sanitized.replace(/\./g, '-');
+    }
+    return sanitized;
+  },
+
   // Helper: Convert URL to Base64 with Compression
   async urlToBase64(url: string): Promise<string> {
       try {
@@ -219,42 +241,100 @@ ${storyText}
   async generateImageNovelAI(prompt: string, negativePrompt: string, config: any): Promise<string> {
       if (!config.apiKey) throw new Error("NovelAI API Key is missing");
       
-      const baseUrl = config.apiBaseUrl || 'https://api.novelai.net/ai/generate-image';
+      const baseUrl = config.apiBaseUrl || 'https://nai-proxy.2752026184.workers.dev/ai/generate-image';
+      const rawModel = config.model || 'nai-diffusion-3';
+      const model = this.sanitizeModelId(rawModel);
+      const isV4 = model.includes('nai-diffusion-4');
+      const isV45 = model.includes('nai-diffusion-4-5');
       
-      // Standard Official NovelAI Request Structure
-      const body = {
-          input: prompt, 
-          model: config.model || 'nai-diffusion-3',
-          action: 'generate',
-          parameters: {
+      // V4 Sampler Map (Standard to NovelAI V4)
+      let sampler = config.sampler || 'k_euler_ancestral';
+      if (isV4) {
+          const v4SamplerMap: Record<string, string> = {
+              'k_euler': 'k_euler',
+              'k_euler_ancestral': 'k_euler_a',
+              'k_dpmpp_2m': 'k_dpmpp_2m',
+              'k_dpmpp_sde': 'k_dpmpp_sde',
+              'k_dpmpp_2s_ancestral': 'k_dpmpp_2s_a',
+              'proxi_euler_ancestral': 'k_euler_a', 
+              'proxi_euler': 'k_euler',
+              'deliberate_euler_ancestral': 'k_euler_a', // V4.5 standard fallback
+              'deliberate_euler': 'k_euler'
+          };
+          sampler = v4SamplerMap[sampler] || 'k_euler_a';
+      }
+
+      console.log(`[DrawingService] Generating image with model: ${model}, provider: NovelAI (isV4: ${isV4}, isV45: ${isV45}, sampler: ${sampler})`);
+
+      // 1. Build Parameters
+      let parameters: any = {};
+      
+      if (isV4) {
+          // V4/V4.5 STRICT Parameter Whitelist - Minimal set to avoid 500
+          parameters = {
               width: config.width || 832,
               height: config.height || 1216,
               steps: config.steps || 28,
-              scale: config.scale || 5.0,
-              sampler: config.sampler || 'k_euler_ancestral',
+              scale: config.scale || 6.0,
+              sampler: sampler,
+              seed: Math.floor(Math.random() * 1000000000),
+              // n_samples is often not needed for V4
+              uc: negativePrompt,
+              params_version: 1,
+              cfg_rescale: 0,
+              noise_schedule: 'native',
+              v4_prompt_optimizer: true,
+              v4_skip_cfg_above_sigma: 19,
+              variety_boost: true,
+              decrisp_mode: false,
+              qualityToggle: true
+          };
+          
+          if (isV45) {
+              parameters.use_coords = true;
+              // For V4.5, character_prompts can be omitted if empty to avoid validation errors
+          }
+      } else {
+          // V3 Parameters
+          parameters = {
+              width: config.width || 832,
+              height: config.height || 1216,
+              steps: config.steps || 28,
+              scale: config.scale || 6.0,
+              sampler: sampler,
+              seed: Math.floor(Math.random() * 1000000000),
+              n_samples: 1, 
+              uc: negativePrompt,
               negative_prompt: negativePrompt,
-              n_samples: 1,
               ucPreset: 0,
-              qualityToggle: true,
+              qualityToggle: false,
               sm: false,
               sm_dyn: false,
               dynamic_thresholding: false,
               controlnet_strength: 1.0,
               legacy_v3_extend: false,
-              add_original_image: false,
-              // Add a default seed if not provided to ensure consistency if needed
-              seed: Math.floor(Math.random() * 1000000000)
-          }
+              add_original_image: false
+          };
+      }
+
+      // 2. Build Request Body
+      const body: any = {
+          input: prompt, 
+          model: model,
+          action: 'generate',
+          parameters: parameters
       };
 
-      // Compatibility: Some proxies expect a flat structure
-      // We'll check if the user provided a custom URL that might be a proxy
-      const isOfficial = baseUrl.includes('novelai.net');
-      const requestBody = isOfficial ? body : {
+      // Compatibility: NovelAI provider always uses official structure
+      const isOfficialStructure = config.providerType === 'novelai' || baseUrl.includes('novelai.net') || baseUrl.includes('workers.dev');
+      
+      const requestBody = isOfficialStructure ? body : {
           ...body.parameters,
           prompt: prompt,
           model: body.model
       };
+
+      console.log('[DrawingService] Request Body:', JSON.stringify(requestBody, null, 2));
 
       let response;
       try {
@@ -267,7 +347,7 @@ ${storyText}
               body: JSON.stringify(requestBody)
           });
       } catch (e: any) {
-          // Detect CORS/Network error
+          console.error('[DrawingService] Fetch Error:', e);
           if (e.name === 'TypeError' && e.message === 'Failed to fetch') {
               throw new Error("网络请求失败 (可能是 CORS 跨域问题)。如果您在浏览器中直接连接 NovelAI 官方接口，请务必使用 CORS 代理或反向代理地址。");
           }
@@ -276,6 +356,7 @@ ${storyText}
 
       if (!response.ok) {
           const errText = await response.text();
+          console.error(`[DrawingService] API Error (${response.status}):`, errText);
           let errorMsg = `NovelAI API Error (${response.status})`;
           try {
               const errJson = JSON.parse(errText);
@@ -293,7 +374,6 @@ ${storyText}
       if (contentType?.includes('application/zip') || contentType?.includes('application/x-zip-compressed')) {
           const blob = await response.blob();
           const zip = await JSZip.loadAsync(blob);
-          // Find the first image file
           const files = Object.keys(zip.files);
           const imageFile = files.find(f => f.endsWith('.png') || f.endsWith('.jpg') || f.endsWith('.webp'));
           
@@ -321,7 +401,6 @@ ${storyText}
           });
       }
 
-      // 3. JSON Response (Usually error or unexpected)
       const text = await response.text();
       throw new Error(`Unexpected NovelAI response format (${contentType}): ${text.substring(0, 100)}`);
   },
@@ -330,56 +409,91 @@ ${storyText}
   async testNovelAIConnection(config: any): Promise<boolean> {
     if (!config.apiKey) throw new Error("API Key 不能为空");
     
-    // For testing, we use a very minimal request to save Anlas/Points
-    // Official NAI doesn't have a simple 'ping' for images, so we try a small generation if possible
-    // or just a very fast check.
-    const baseUrl = config.apiBaseUrl || 'https://api.novelai.net/ai/generate-image';
+    const baseUrl = config.apiBaseUrl || 'https://nai-proxy.2752026184.workers.dev/ai/generate-image';
+    const rawModel = config.model || 'nai-diffusion-3';
+    const model = this.sanitizeModelId(rawModel);
+    const isV4 = model.includes('nai-diffusion-4');
+    const isV45 = model.includes('nai-diffusion-4-5');
     
-    const testBody = {
-        input: "test", 
-        model: config.model || 'nai-diffusion-3',
-        action: 'generate',
-        parameters: {
+    console.log(`[DrawingService] Testing connection to: ${baseUrl} with model: ${model} (isV4: ${isV4})`);
+
+    let parameters: any = {};
+    
+    if (isV4) {
+        parameters = {
+            width: 832,
+            height: 1216,
+            steps: 28,
+            scale: 6.0,
+            sampler: 'k_euler_a',
+            seed: Math.floor(Math.random() * 1000000000),
+            uc: "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry",
+            params_version: 1,
+            cfg_rescale: 0,
+            noise_schedule: 'native',
+            v4_prompt_optimizer: true,
+            v4_skip_cfg_above_sigma: 19,
+            variety_boost: true,
+            decrisp_mode: false,
+            qualityToggle: true
+        };
+        if (isV45) parameters.use_coords = true;
+    } else {
+        parameters = {
             width: 64,
             height: 64,
-            steps: 1, // Minimum steps
-            n_samples: 1
-        }
+            steps: 1, 
+            seed: Math.floor(Math.random() * 1000000000),
+            sampler: 'k_euler_ancestral',
+            n_samples: 1,
+            ucPreset: 0,
+            qualityToggle: false,
+            sm: false,
+            sm_dyn: false,
+            uc: "",
+            negative_prompt: ""
+        };
+    }
+
+    const testBody: any = {
+        input: isV4 ? "A girl with a red bow sitting on a porch" : "test connection", 
+        model: model,
+        action: 'generate',
+        parameters: parameters
+    };
+
+    console.log('[DrawingService] Test Request Body:', JSON.stringify(testBody, null, 2));
+
+    const isOfficialStructure = config.providerType === 'novelai' || baseUrl.includes('novelai.net') || baseUrl.includes('workers.dev');
+    const requestBody = isOfficialStructure ? testBody : {
+        ...testBody.parameters,
+        prompt: testBody.input,
+        model: testBody.model
     };
 
     try {
-        let response;
-        try {
-            response = await fetch(baseUrl, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${config.apiKey}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(testBody)
-            });
-        } catch (e: any) {
-            // Detect CORS/Network error
-            if (e.name === 'TypeError' && e.message === 'Failed to fetch') {
-                throw new Error("连接失败：检测到跨域限制 (CORS)。请使用代理服务器或反向代理。");
-            }
-            throw e;
-        }
-
-        if (response.status === 401) throw new Error("API Key 无效 (401)");
-        if (response.status === 404) throw new Error("接口地址或模型 ID 错误 (404)");
-        if (response.status === 400) {
-            const errText = await response.text();
-            if (errText.includes("model")) throw new Error(`模型 ID "${config.model}" 不被支持`);
-            throw new Error(`请求错误 (400): ${errText}`);
-        }
+        const response = await fetch(baseUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${config.apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        });
 
         if (!response.ok) {
-            throw new Error(`连接失败 (${response.status})`);
+            const errText = await response.text();
+            console.error(`[DrawingService] Test Connection Failed (${response.status}):`, errText);
+            throw new Error(`连接失败 (${response.status}): ${errText.substring(0, 100)}`);
         }
 
+        console.log('[DrawingService] Test Connection Success!');
         return true;
     } catch (e: any) {
+        console.error('[DrawingService] Test Connection Fetch Error:', e);
+        if (e.name === 'TypeError' && e.message === 'Failed to fetch') {
+            throw new Error("网络请求失败 (可能是 CORS 跨域问题)。请尝试使用代理地址。");
+        }
         throw e;
     }
   },
