@@ -23,6 +23,10 @@
   <img src="https://img.shields.io/badge/Status-Beta-red?style=for-the-badge&logo=fire&logoColor=white&labelColor=000000" alt="Beta">
 </a>
 &nbsp;
+<a href="./LICENSE">
+  <img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge&logo=gnu&logoColor=white" alt="License">
+</a>
+&nbsp;
 <a href="./TECHNICAL_DESIGN.md">
   <img src="https://img.shields.io/badge/Technical-Design-blue?style=for-the-badge&logo=gitbook&logoColor=white&labelColor=000000" alt="Docs">
 </a>
