@@ -213,6 +213,7 @@ export const useChatStore = defineStore('chat', () => {
       content,
       timestamp,
       snapshotId,
+      turnCount: gameStore.state.system.turn_count,
       debugLog: debugLog ? JSON.parse(JSON.stringify(debugLog)) : undefined // Clean copy
     }) as number;
 
@@ -228,6 +229,7 @@ export const useChatStore = defineStore('chat', () => {
       content,
       timestamp,
       snapshotId,
+      turnCount: gameStore.state.system.turn_count,
       debugLog
     });
 

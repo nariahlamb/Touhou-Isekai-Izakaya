@@ -253,7 +253,7 @@ function formatTime(timestamp: number) {
               @click="triggerImport"
               class="flex items-center gap-2 px-4 py-2.5 bg-stone-200 hover:bg-stone-300 dark:bg-stone-700 dark:hover:bg-stone-600 text-izakaya-wood dark:text-stone-200 rounded-lg transition-all shadow hover:shadow-lg hover:-translate-y-0.5 text-sm font-bold font-display"
             >
-              <Upload class="w-4 h-4" /> 导入存档
+              <Download class="w-4 h-4" /> 导入存档
             </button>
             <button 
               @click="isCreating = true"
@@ -335,7 +335,7 @@ function formatTime(timestamp: number) {
                   class="p-2 text-izakaya-wood/40 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors"
                   title="导出存档"
                 >
-                  <Download class="w-4 h-4" />
+                  <Upload class="w-4 h-4" />
                 </button>
 
                 <button 

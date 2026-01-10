@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
+import _ from 'lodash';
 
 export interface GameSnapshot {
   id: number;
@@ -15,6 +16,7 @@ export interface ChatMessage {
   content: string;
   timestamp: number;
   snapshotId?: number;
+  turnCount?: number; // The game turn this message belongs to
   
   // Debug Info
   debugLog?: {
@@ -130,13 +132,35 @@ const db = new Dexie('TouhouIsekaiIzakayaDB') as Dexie & {
 };
 
 // Schema definition
-db.version(5).stores({
+db.version(6).stores({
   snapshots: '++id, saveSlotId, chatId, createdAt, [saveSlotId+chatId]',
-  chats: '++id, saveSlotId, role, timestamp',
+  chats: '++id, saveSlotId, role, timestamp, turnCount',
   settings: '++id',
   characters: '++id, uuid, name, category, *tags',
   saveSlots: '++id, lastPlayed',
   memories: '++id, saveSlotId, turnCount, type, *tags, *related_entities, [saveSlotId+turnCount], [saveSlotId+type+turnCount], [saveSlotId+type]'
+}).upgrade(async tx => {
+  // Migration for version 6: Add turnCount to existing chat messages
+  // This is a best-effort fallback based on sequential order within each save slot
+  const chats = await tx.table('chats').toArray();
+  const saveGroups = _.groupBy(chats, 'saveSlotId');
+  
+  for (const saveSlotId in saveGroups) {
+    const saveChats = _.sortBy(saveGroups[saveSlotId], 'timestamp');
+    let turnCounter = 0;
+    
+    for (let i = 0; i < saveChats.length; i++) {
+      const msg = saveChats[i];
+      // We assume each user message starts or is part of a turn increment
+      // In the game loop, turn is incremented before user message.
+      // So every time we see a user message, we increment our counter.
+      if (msg.role === 'user') {
+        turnCounter++;
+      }
+      // If turnCounter is 0 (e.g. system message at start), we'll keep it at 0
+      await tx.table('chats').update(msg.id, { turnCount: turnCounter });
+    }
+  }
 });
 // .upgrade(tx => {
 //   // Migration logic

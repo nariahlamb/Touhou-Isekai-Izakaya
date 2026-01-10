@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import { type ChatMessage } from '@/db';
 import { User, Bot, Trash2, Bug, Copy, Edit, MoreVertical, Terminal, X, RefreshCw } from 'lucide-vue-next';
 import { useChatStore } from '@/stores/chat';
@@ -23,8 +23,26 @@ const isRegenerating = ref(false);
 const editContent = ref('');
 const showActionMenu = ref(false);
 const closeMenuTimer = ref<number | null>(null);
+const isTouchDevice = ref(false);
+
+onMounted(() => {
+  isTouchDevice.value = window.matchMedia('(pointer: coarse)').matches;
+  // Listen for clicks outside to close the menu
+  document.addEventListener('click', closeMenuOnOutsideClick);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', closeMenuOnOutsideClick);
+});
+
+function closeMenuOnOutsideClick() {
+  if (showActionMenu.value) {
+    showActionMenu.value = false;
+  }
+}
 
 function handleMouseEnterMenu() {
+  if (isTouchDevice.value) return; // Ignore hover on touch devices
   if (closeMenuTimer.value) {
     clearTimeout(closeMenuTimer.value);
     closeMenuTimer.value = null;
@@ -33,9 +51,15 @@ function handleMouseEnterMenu() {
 }
 
 function handleMouseLeaveMenu() {
+  if (isTouchDevice.value) return; // Ignore hover on touch devices
   closeMenuTimer.value = window.setTimeout(() => {
     showActionMenu.value = false;
   }, 150);
+}
+
+function toggleActionMenu(e: Event) {
+  e.stopPropagation();
+  showActionMenu.value = !showActionMenu.value;
 }
 
 const isUser = computed(() => props.message.role === 'user');
@@ -138,7 +162,13 @@ async function handleRegenerateMemory() {
       <!-- Sender Name -->
       <div class="text-xs mb-1 px-1 opacity-70 font-display flex items-center gap-2" :class="{ 'flex-row-reverse': isUser }">
         <span class="font-bold">{{ message.role === 'user' ? (gameStore.state.player.name || '你') : (message.role === 'system' ? '系统' : 'Storyteller') }}</span>
-        <span class="text-[10px] opacity-50">{{ new Date(message.timestamp).toLocaleTimeString() }}</span>
+        <div class="flex items-center gap-1.5" :class="{ 'flex-row-reverse': isUser }">
+          <span class="text-[10px] opacity-50">{{ new Date(message.timestamp).toLocaleTimeString() }}</span>
+          <span v-if="message.turnCount" class="text-[10px] px-2 py-0.5 rounded-full bg-touhou-red/10 text-touhou-red border border-touhou-red/20 font-bold tracking-tight flex items-center gap-1 shadow-sm">
+            <span class="opacity-70 text-[8px] uppercase tracking-widest font-sans">Turn</span>
+            <span class="font-serif-display text-sm leading-none">{{ message.turnCount }}</span>
+          </span>
+        </div>
       </div>
 
       <!-- Bubble -->
@@ -262,16 +292,20 @@ async function handleRegenerateMemory() {
         </div>
       </div>
 
-      <!-- Actions (Visible on Hover) -->
-      <div v-if="!isEditing" class="absolute top-0 opacity-0 group-hover/message:opacity-100 transition-opacity duration-200 z-20" 
-           :class="isUser ? '-left-10' : '-right-10'"
+      <!-- Actions -->
+      <div v-if="!isEditing" 
+           class="absolute top-0 transition-opacity duration-200 z-20" 
+           :class="[
+             isUser ? '-left-10' : '-right-10',
+             isTouchDevice ? 'opacity-100' : 'opacity-0 group-hover/message:opacity-100'
+           ]"
            @mouseenter="handleMouseEnterMenu"
            @mouseleave="handleMouseLeaveMenu">
         
         <!-- Action Menu Container -->
         <div class="relative">
           <!-- Menu Toggle Button -->
-          <button class="p-1.5 bg-white/80 backdrop-blur rounded-full shadow-sm border border-izakaya-wood/10 hover:bg-white hover:border-touhou-red/30 transition-all text-izakaya-wood/60 hover:text-touhou-red">
+          <button @click.stop="toggleActionMenu" class="p-1.5 bg-white/80 backdrop-blur rounded-full shadow-sm border border-izakaya-wood/10 hover:bg-white hover:border-touhou-red/30 transition-all text-izakaya-wood/60 hover:text-touhou-red">
             <MoreVertical class="w-4 h-4" />
           </button>
           
