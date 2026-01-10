@@ -555,7 +555,18 @@ function handleVolumeChangeTest() {
 
              <!-- Prompt LLM Config -->
              <div class="border-t border-izakaya-wood/10 pt-4">
-                 <h4 class="font-bold text-izakaya-wood font-display mb-2">步骤1：提示词生成模型 (LLM #5)</h4>
+                 <div class="flex items-center justify-between mb-2">
+                   <h4 class="font-bold text-izakaya-wood font-display">步骤1：提示词生成模型 (LLM #5)</h4>
+                   
+                   <!-- Reference Image Toggle -->
+                   <div class="flex items-center gap-2 px-3 py-1 bg-white/40 rounded-full border border-izakaya-wood/10 shadow-sm">
+                      <span class="text-[10px] font-bold text-izakaya-wood/60 font-display">使用角色头像作为绘图参考</span>
+                      <label class="relative inline-flex items-center cursor-pointer scale-75 origin-right">
+                        <input type="checkbox" v-model="settingsStore.drawingConfig.useReferenceImages" class="sr-only peer">
+                        <div class="w-9 h-5 bg-izakaya-wood/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-touhou-red"></div>
+                      </label>
+                   </div>
+                 </div>
                  <LLMConfigPanel config-key="drawing" label="提示词生成模型配置" />
                  
                  <!-- System Prompt Config -->

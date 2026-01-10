@@ -752,7 +752,7 @@ ${storyText}
         
         // 3. Load Reference Images (Heads + Extra)
         const refImages: string[] = [...extraReferenceImages];
-        if (characters && characters.length > 0) {
+        if (config.useReferenceImages && characters && characters.length > 0) {
             console.log(`[DrawingService] Checking for character reference images among: ${characters.map(c => c.name).join(', ')}`);
             for (const char of characters) {
                 const headUrl = findAvatarImage(char.name, headAssets);

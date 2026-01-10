@@ -52,6 +52,7 @@ export interface DrawingConfig {
   systemPromptNovelAIV4: string;
   extraPositivePrompt: string;
   extraNegativePrompt: string;
+  useReferenceImages: boolean;
 }
 
 const DEFAULT_LLM_CONFIGS: Record<string, LLMConfig> = {
@@ -162,7 +163,8 @@ export const useSettingsStore = defineStore('settings', () => {
 
     // Extra Prompts
     extraPositivePrompt: '',
-    extraNegativePrompt: ''
+    extraNegativePrompt: '',
+    useReferenceImages: true
   });
 
   async function loadSettings() {
