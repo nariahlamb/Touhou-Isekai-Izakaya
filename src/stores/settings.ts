@@ -34,6 +34,26 @@ export interface LLMConfig {
   maxWordCount?: number;
 }
 
+export interface DrawingConfig {
+  enabled: boolean;
+  providerType: 'novelai' | 'openai' | 'openai-image';
+  apiBaseUrl: string;
+  apiKey: string;
+  model: string;
+  width: number;
+  height: number;
+  steps: number;
+  scale: number;
+  sampler: string;
+  negativePrompt: string;
+  systemPrompt: string;
+  systemPromptOpenAI: string;
+  systemPromptNovelAIV3: string;
+  systemPromptNovelAIV4: string;
+  extraPositivePrompt: string;
+  extraNegativePrompt: string;
+}
+
 const DEFAULT_LLM_CONFIGS: Record<string, LLMConfig> = {
   chat: {
     id: 'chat',
@@ -118,9 +138,9 @@ export const useSettingsStore = defineStore('settings', () => {
   const sfxVolume = ref(1.0);
 
   // Drawing Settings (Image Generation API)
-  const drawingConfig = ref({
+  const drawingConfig = ref<DrawingConfig>({
     enabled: false,
-    providerType: 'novelai' as 'openai' | 'novelai',
+    providerType: 'novelai',
     apiBaseUrl: 'https://nai-proxy.2752026184.workers.dev/ai/generate-image',
     apiKey: '',
     model: 'nai-diffusion-4-full',

@@ -2,21 +2,11 @@ import OpenAI from 'openai';
 import JSZip from 'jszip';
 import { useSettingsStore } from '@/stores/settings';
 import { useToastStore } from '@/stores/toast';
+import { findAvatarImage } from '@/services/characterMapping';
 
-// Load all CG images eagerly
+// Load all character head images eagerly
 // Result is a map of file paths to public URLs
-const cgAssets = import.meta.glob('/src/assets/images/cg/*.{jpg,jpeg,png,webp}', { eager: true, import: 'default' });
-
-// Build a map of Character Name -> Image URL
-const characterCGMap: Record<string, string> = {};
-for (const path in cgAssets) {
-    // path example: "/src/assets/images/cg/上白泽慧音.jpg"
-    // Extract filename without extension
-    const fileName = path.split('/').pop()?.split('.')[0];
-    if (fileName) {
-        characterCGMap[fileName] = cgAssets[path] as string;
-    }
-}
+const headAssets = import.meta.glob('/src/assets/images/head/*.{jpg,jpeg,png,webp}', { eager: true, import: 'default' });
 
 export const DEFAULT_DRAWING_PROMPT_SYSTEM = `
 你是一个《东方Project》RPG游戏的“插画导演”。
@@ -514,57 +504,96 @@ ${storyText}
       throw new Error('未配置绘图 API (URL 或 Key)');
     }
 
-    // Construct Multimodal Message
-    const content: any[] = [{ type: 'text', text: `Prompt: ${prompt}\nNegative Prompt: ${negativePrompt}` }];
-    
-    // Add reference images if any
-    if (referenceImages && referenceImages.length > 0) {
-        console.log(`[DrawingService] Attaching ${referenceImages.length} reference images to request.`);
-        for (const imgData of referenceImages) {
-            content.push({
-                type: 'image_url',
-                image_url: { 
-                    url: imgData 
-                }
-            });
-        }
-    }
-
-    const body = {
-      model: config.model || 'gemini-2.5-flash-image-landscape',
-      messages: [
-        { role: 'user', content: content }
-      ],
-      stream: true
-    };
-
+    // Construct Request URL
     let baseUrl = config.apiBaseUrl.replace(/\/+$/, '');
-    if (baseUrl.endsWith('/chat/completions')) {
-       baseUrl = baseUrl.replace(/\/chat\/completions$/, '');
+    let targetUrl = '';
+    const isStandardImageApi = baseUrl.endsWith('/images/generations') || config.providerType === 'openai-image';
+
+    if (isStandardImageApi) {
+        targetUrl = baseUrl;
+    } else {
+        if (baseUrl.endsWith('/chat/completions')) {
+            baseUrl = baseUrl.replace(/\/chat\/completions$/, '');
+        }
+        targetUrl = baseUrl + '/chat/completions';
     }
-    const chatUrl = baseUrl + '/chat/completions';
 
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 60000 * 2); // 2 min timeout
 
-      const res = await fetch(chatUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${config.apiKey}`,
-          'Content-Type': 'application/json',
-          'Accept': 'text/event-stream'
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal
-      });
+      let res: Response;
+      
+      if (isStandardImageApi) {
+          // Standard OpenAI / SiliconFlow Images Generations API
+          const imageBody = {
+              model: config.model || 'black-forest-labs/FLUX.1-schnell',
+              prompt: prompt,
+              negative_prompt: negativePrompt,
+              image_size: `${config.width || 1024}x${config.height || 1024}`,
+              batch_size: 1,
+              seed: Math.floor(Math.random() * 1000000)
+          };
+          
+          res = await fetch(targetUrl, {
+              method: 'POST',
+              headers: {
+                  'Authorization': `Bearer ${config.apiKey}`,
+                  'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(imageBody),
+              signal: controller.signal
+          });
+      } else {
+          // Multimodal Chat API (Nanobanana / Gemini / Custom Proxy)
+          const content: any[] = [{ type: 'text', text: `Prompt: ${prompt}\nNegative Prompt: ${negativePrompt}` }];
+          
+          if (referenceImages && referenceImages.length > 0) {
+              for (const imgData of referenceImages) {
+                  content.push({
+                      type: 'image_url',
+                      image_url: { url: imgData }
+                  });
+              }
+          }
+
+          const chatBody = {
+              model: config.model || 'gemini-2.0-flash-exp',
+              messages: [{ role: 'user', content: content }],
+              stream: true
+          };
+
+          res = await fetch(targetUrl, {
+              method: 'POST',
+              headers: {
+                  'Authorization': `Bearer ${config.apiKey}`,
+                  'Content-Type': 'application/json',
+                  'Accept': 'text/event-stream'
+              },
+              body: JSON.stringify(chatBody),
+              signal: controller.signal
+          });
+      }
 
       clearTimeout(timeoutId);
 
       if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        const errorText = await res.text().catch(() => '');
+        throw new Error(`HTTP ${res.status}: ${res.statusText || ''} ${errorText}`);
       }
 
+      // Handle Standard Image API Response (JSON)
+      if (isStandardImageApi) {
+          const data = await res.json();
+          const url = data?.data?.[0]?.url || data?.images?.[0]?.url;
+          if (!url) {
+              console.error('[DrawingService] Image API Response:', data);
+              throw new Error('未从 API 响应中获取到图片 URL');
+          }
+          return url;
+      }
+
+      // Handle Chat API Response (Stream)
       const reader = res.body?.getReader();
       if (!reader) throw new Error('Stream not available');
 
@@ -721,20 +750,20 @@ ${storyText}
         console.log('[DrawingService] Final Prompt:', finalPrompt);
         console.log('[DrawingService] Final Negative Prompt:', finalNegativePrompt);
         
-        // 3. Load Reference Images (CGs + Extra)
+        // 3. Load Reference Images (Heads + Extra)
         const refImages: string[] = [...extraReferenceImages];
         if (characters && characters.length > 0) {
-            console.log(`[DrawingService] Checking for character CGs among: ${characters.map(c => c.name).join(', ')}`);
+            console.log(`[DrawingService] Checking for character reference images among: ${characters.map(c => c.name).join(', ')}`);
             for (const char of characters) {
-                const cgUrl = characterCGMap[char.name];
-                if (cgUrl) {
+                const headUrl = findAvatarImage(char.name, headAssets);
+                if (headUrl) {
                     try {
-                        console.log(`[DrawingService] Found CG for ${char.name}, loading...`);
-                        const base64 = await this.urlToBase64(cgUrl);
+                        console.log(`[DrawingService] Found reference image for ${char.name}, loading...`);
+                        const base64 = await this.urlToBase64(headUrl);
                         refImages.push(base64);
-                        console.log(`[DrawingService] Successfully loaded CG for ${char.name}`);
+                        console.log(`[DrawingService] Successfully loaded reference image for ${char.name}`);
                     } catch (e) {
-                        console.error(`[DrawingService] Failed to load CG for ${char.name}:`, e);
+                        console.error(`[DrawingService] Failed to load reference image for ${char.name}:`, e);
                     }
                 }
             }

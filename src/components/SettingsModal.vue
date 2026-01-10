@@ -122,7 +122,7 @@ watch(() => settingsStore.drawingConfig.providerType, (newVal) => {
     if (!settingsStore.drawingConfig.model) {
       settingsStore.drawingConfig.model = 'nai-diffusion-4-full';
     }
-  } else if (newVal === 'openai') {
+  } else if (newVal === 'openai' || newVal === 'openai-image') {
     if (!settingsStore.drawingConfig.apiBaseUrl || settingsStore.drawingConfig.apiBaseUrl.includes('novelai.net') || settingsStore.drawingConfig.apiBaseUrl.includes('workers.dev')) {
       settingsStore.drawingConfig.apiBaseUrl = 'https://api.openai.com/v1';
     }
@@ -228,7 +228,7 @@ async function loadDrawingModels() {
   
   // Only fetch models for OpenAI/Nanobanana providers. 
   // NovelAI uses fixed model IDs.
-  if (providerType !== 'openai') {
+  if (providerType !== 'openai' && providerType !== 'openai-image') {
     drawingModels.value = [];
     drawingFetchError.value = '';
     drawingFetchSuccess.value = false;
@@ -269,7 +269,7 @@ function refreshDrawingModels() {
 watch(
   () => [settingsStore.drawingConfig.apiBaseUrl, settingsStore.drawingConfig.apiKey, settingsStore.drawingConfig.providerType],
   ([newUrl, newKey, newType]) => {
-    if (newUrl && newKey && newType === 'openai') {
+    if (newUrl && newKey && (newType === 'openai' || newType === 'openai-image')) {
       loadDrawingModels();
     }
   }
@@ -565,9 +565,9 @@ function handleVolumeChangeTest() {
                      <span class="text-xs font-normal text-izakaya-wood/50 ml-2">用于指导 LLM 如何编写绘图 Prompt</span>
                    </label>
                    
-                   <!-- Nanobanana System Prompt -->
+                   <!-- OpenAI System Prompt -->
                    <textarea 
-                      v-if="settingsStore.drawingConfig.providerType === 'openai'"
+                      v-if="settingsStore.drawingConfig.providerType === 'openai' || settingsStore.drawingConfig.providerType === 'openai-image'"
                       v-model="settingsStore.drawingConfig.systemPromptOpenAI" 
                       rows="6"
                       class="w-full px-3 py-2 bg-white/60 border border-izakaya-wood/20 rounded-md shadow-sm focus:outline-none focus:border-touhou-red/50 focus:ring-1 focus:ring-touhou-red/20 transition-all font-mono text-xs text-izakaya-wood placeholder:text-izakaya-wood/30 resize-y"
@@ -639,14 +639,18 @@ function handleVolumeChangeTest() {
                   <!-- Provider Type Selection -->
                   <div class="space-y-1">
                     <label class="block text-sm font-bold text-izakaya-wood font-display">API 类型</label>
-                    <div class="flex gap-4">
+                    <div class="flex flex-wrap gap-4">
                       <label class="flex items-center gap-2 cursor-pointer">
                         <input type="radio" v-model="settingsStore.drawingConfig.providerType" value="openai" class="accent-touhou-red">
-                        <span class="text-sm font-medium text-izakaya-wood">Nanobanana 格式</span>
+                        <span class="text-sm font-medium text-izakaya-wood">多模态对话 (Nanobanana/Gemini)</span>
+                      </label>
+                      <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" v-model="settingsStore.drawingConfig.providerType" value="openai-image" class="accent-touhou-red">
+                        <span class="text-sm font-medium text-izakaya-wood">标准绘图 (OpenAI/硅基流动)</span>
                       </label>
                       <label class="flex items-center gap-2 cursor-pointer">
                         <input type="radio" v-model="settingsStore.drawingConfig.providerType" value="novelai" class="accent-touhou-red">
-                        <span class="text-sm font-medium text-izakaya-wood">NovelAI 官方格式</span>
+                        <span class="text-sm font-medium text-izakaya-wood">NovelAI 官方</span>
                       </label>
                     </div>
                   </div>
@@ -675,8 +679,8 @@ function handleVolumeChangeTest() {
                     >
                   </div>
 
-                  <!-- Nanobanana Specific: Model Fetcher -->
-                  <div v-if="settingsStore.drawingConfig.providerType === 'openai'" class="space-y-1">
+                  <!-- OpenAI/SiliconFlow Specific: Model Fetcher -->
+                  <div v-if="settingsStore.drawingConfig.providerType === 'openai' || settingsStore.drawingConfig.providerType === 'openai-image'" class="space-y-1">
                     <label class="block text-sm font-bold text-izakaya-wood font-display">模型名称 (Model)</label>
                     <div class="flex gap-2">
                       <select 
