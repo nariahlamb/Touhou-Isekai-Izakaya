@@ -144,20 +144,38 @@ async function onWizardComplete(data: any) {
 }
 
 async function handleExport(save: any) {
+  if (!save || !save.id) {
+    alert('无效的存档，无法导出');
+    return;
+  }
+  
   try {
+    console.log(`[SaveManager] Exporting save ${save.id} (${save.name})...`);
     const json = await saveStore.exportSave(save.id);
     const blob = new Blob([json], { type: 'application/json' });
+    
+    // Check size
+    if (blob.size > 100 * 1024 * 1024) { // 100MB
+       console.warn(`[SaveManager] Large save file detected: ${(blob.size / 1024 / 1024).toFixed(2)}MB`);
+    }
+
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `TouhouSave_${save.name}_${dayjs().format('YYYYMMDD_HHmmss')}.json`;
+    a.download = `TouhouSave_${save.name.replace(/[\\/:*?"<>|]/g, '_')}_${dayjs().format('YYYYMMDD_HHmmss')}.json`;
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  } catch (error) {
+    
+    // Cleanup after a delay to ensure the browser has started the download
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
+    
+    console.log('[SaveManager] Export triggered successfully');
+  } catch (error: any) {
     console.error('Export failed:', error);
-    alert('导出存档失败');
+    alert(`导出存档失败: ${error.message || '未知错误'}`);
   }
 }
 

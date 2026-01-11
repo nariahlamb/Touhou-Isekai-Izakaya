@@ -154,7 +154,7 @@ export const useSaveStore = defineStore('save', () => {
       memories,
       snapshots,
       characters
-    }, null, 2);
+    });
   }
 
   async function importSave(fileContent: string) {
