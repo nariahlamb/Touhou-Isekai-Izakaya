@@ -58,7 +58,8 @@ const filteredCharacters = computed(() => {
 });
 
 const isTypeDisabled = computed(() => {
-  return formData.value.type === 'spell_card' || formData.value.type === 'other';
+  // Allow editing for all entries to give full control to the player
+  return false;
 });
 
 onMounted(async () => {
@@ -216,7 +217,6 @@ function removeTag(index: number) {
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-1.5">
                   <span class="font-bold truncate">{{ char.name }}</span>
-                  <Lock v-if="char.type === 'spell_card' || char.type === 'other'" class="w-3 h-3 text-amber-500 flex-shrink-0" />
                 </div>
                 <div class="text-[10px] opacity-50 flex items-center gap-1 mt-0.5">
                   <span v-if="char.type === 'spell_card'">符卡</span>
@@ -280,37 +280,21 @@ function removeTag(index: number) {
             <!-- Form -->
             <div class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 md:space-y-8 custom-scrollbar relative" style="-webkit-overflow-scrolling: touch;">
               
-              <!-- Locked Alert -->
-              <div v-if="isTypeDisabled" class="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl flex items-start gap-4 animate-in fade-in slide-in-from-top-4 duration-300">
-                <div class="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center text-amber-600 dark:text-amber-400 flex-shrink-0">
-                  <Lock class="w-5 h-5" />
-                </div>
-                <div class="flex-1">
-                  <h4 class="text-sm font-bold text-amber-800 dark:text-amber-300">该类型的编辑功能已暂时关闭</h4>
-                  <p class="text-xs text-amber-700/70 dark:text-amber-400/70 mt-1">目前仅支持“角色 (Character)”类型的条目编辑。符卡和其他类型的条目现在处于只读状态。</p>
-                </div>
-              </div>
-
               <!-- Type Selector -->
               <div>
                  <div class="flex items-center justify-between mb-2">
                     <label class="block text-sm font-bold text-izakaya-wood dark:text-stone-300">条目类型</label>
-                    <span v-if="isTypeDisabled" class="text-[10px] font-bold px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded flex items-center gap-1 border border-amber-200 dark:border-amber-800/50">
-                       <Lock class="w-3 h-3" /> 暂时关闭该类型的编辑功能
-                    </span>
                  </div>
                  <div class="flex rounded-lg shadow-sm overflow-hidden border border-izakaya-wood/20">
                     <button 
                       v-for="t in ['character', 'spell_card', 'other']" 
                       :key="t"
                       @click="formData.type = t as any"
-                      :disabled="(t === 'spell_card' || t === 'other') || (isTypeDisabled && formData.type !== t)"
-                      class="flex-1 px-4 py-2.5 text-sm font-bold transition-colors focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                      :class="formData.type === t 
+                      class="flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold transition-all"
+                      :class="formData.type === t || (!formData.type && t === 'character')
                         ? 'bg-touhou-red text-white' 
                         : 'bg-white dark:bg-stone-800 text-izakaya-wood dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-700 border-r last:border-r-0 border-izakaya-wood/10'"
                     >
-                      <Lock v-if="t === 'spell_card' || t === 'other'" class="w-3 h-3" />
                       {{ t === 'character' ? '角色 (Character)' : t === 'spell_card' ? '符卡 (Spell Card)' : '其他 (Other)' }}
                     </button>
                  </div>

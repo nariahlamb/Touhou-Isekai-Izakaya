@@ -888,7 +888,10 @@ function handleMobilePanelSwitch(panel: 'chat' | 'status' | 'map' | 'characters'
                 ></textarea>
                 
                 <!-- Ink Stone / Send Button Container -->
-                <div class="absolute right-2 bottom-1.5 z-40 flex gap-2">
+                <div 
+                  class="absolute right-2 bottom-1.5 z-40 flex gap-2 transition-opacity duration-300"
+                  :class="{ 'opacity-25 hover:opacity-100': userInput.trim().length > 0 }"
+                >
                     <button 
                       v-if="chatStore.messages.length > 0"
                       @click="handleRefresh"

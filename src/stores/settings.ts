@@ -306,6 +306,11 @@ export const useSettingsStore = defineStore('settings', () => {
     try {
       const config = JSON.parse(jsonStr);
       
+      // Validation: Ensure it's a valid backup file before doing anything
+      if (!config.version || (!config.globalProvider && !config.gameData)) {
+        throw new Error("无效的备份文件：缺少版本号或必要数据");
+      }
+
       // 1. Import Global Settings
       if (config.globalProvider) globalProvider.value = config.globalProvider;
       if (config.llmConfigs) {

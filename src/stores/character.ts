@@ -47,25 +47,8 @@ export const useCharacterStore = defineStore('character', () => {
       }
 
       if (existing && existing.id) {
-        // UPDATE existing character
-        // We overwrite DB data with File data to ensure consistency with source files
-        const updatedCard: CharacterCard = {
-           ...existing, // Keep existing fields (like ID)
-           ...charData, // Overwrite with File Data
-           description: desc, // Ensure processed description
-           tags: charData.tags || existing.tags || [],
-           category: charData.category || existing.category || '未分类',
-           // Critical: Ensure we keep the valid ID and UUID
-           id: existing.id,
-           uuid: existing.uuid 
-        };
-        
-        // Only update if something changed? 
-        // For simplicity and "force sync", we just put. Dexie is fast enough.
-        // But to avoid unnecessary writes/reactivity triggers, maybe simple check?
-        // Let's just put.
-        await db.characters.put(updatedCard);
-        added = true; // Trigger reload
+        // Character already exists, skip overwriting to preserve player edits
+        continue;
       } else {
         // CREATE new character
         if (charData.name && charData.description) {

@@ -98,14 +98,14 @@ async function saveEdit() {
       newContent = editingRawContent.value;
     }
     
-    // Update DB
-    await db.memories.update(editingMemory.value.id, {
+    // Update DB - Use JSON.parse/stringify to strip Vue proxies and ensure plain data
+    await db.memories.update(editingMemory.value.id, JSON.parse(JSON.stringify({
       content: newContent,
       gameDate: editingMemory.value.gameDate,
       gameTime: editingMemory.value.gameTime,
       location: editingMemory.value.location,
       tags: editingMemory.value.tags
-    });
+    })));
     
     isEditing.value = false;
     editingMemory.value = null;

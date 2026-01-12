@@ -7,6 +7,7 @@ import { useSaveStore } from '@/stores/save';
 import { MemoryService } from './memory';
 import { estimateTokens } from '@/utils/token';
 import { resolveCharacterId } from './characterMapping';
+import { resolveLocationId } from './locationMapping';
 
 export interface PromptSection {
   id: string;
@@ -259,13 +260,14 @@ export class PromptService {
       this.addSection(ctx, 'user_persona', '玩家人设', 'system', `<user_persona>\n${personaContent}\n</user_persona>`);
     };
 
-    // 5. Character Injection (Dynamic)
+    // 5. Lorebook Injection (Characters, Locations, Items, etc.)
     this.blockHandlers['char_injection'] = async (ctx) => {
       const charStore = useCharacterStore();
       await charStore.loadCharacters(); // Ensure loaded
       
       const gameStore = useGameStore();
       const currentSceneNPCs = gameStore.state.system.current_scene_npcs;
+      const currentLocation = gameStore.state.player.location;
       
       // Get history directly from store, not from ctx.sections (which might be empty depending on block order)
       const chatStore = useChatStore();
@@ -275,6 +277,15 @@ export class PromptService {
       const playerName = gameStore.state.player.name || '玩家';
       
       const activeChars = new Map<string, any>();
+
+      // Strategy 0: Current Location based
+      if (currentLocation) {
+        const resolvedLocId = resolveLocationId(currentLocation, charStore.characters);
+        const locCard = charStore.characters.find(c => c.uuid === resolvedLocId);
+        if (locCard) {
+          activeChars.set(locCard.uuid, { card: locCard, reason: '当前场景地点' });
+        }
+      }
 
       // Strategy 1: Scene based (Who is explicitly in the scene?)
       for (const npcId of currentSceneNPCs) {
@@ -286,8 +297,8 @@ export class PromptService {
         }
       }
       
-      // Strategy 2: Keyword matching in User Content OR Recent History
-      const textToScan = ctx.userContent + '\n' + historyText;
+      // Strategy 2: Keyword matching in User Content OR Recent History OR Current Location Name
+      const textToScan = ctx.userContent + '\n' + historyText + '\n' + (currentLocation || '');
       
       for (const char of charStore.characters) {
         if (activeChars.has(char.uuid)) continue;
@@ -323,7 +334,9 @@ export class PromptService {
           // Replace {{user}} in character description
           content = content.replace(/\{\{user\}\}/g, playerName);
 
-          if (reason === '提及/回忆' || reason === '剧情预测') {
+          if (reason === '当前场景地点') {
+             content = `[当前位置设定: ${card.name}]\n${content}`;
+          } else if (reason === '提及/回忆' || reason === '剧情预测') {
              // Double check: Is it actually in currentSceneNPCs? (In case Strategy 1 missed it)
              const isInScene = currentSceneNPCs.some(id => {
                 if (!id) return false;
@@ -350,10 +363,10 @@ export class PromptService {
 衣着: ${runtimeStatus.clothing}`;
                 }
              }
-          } else {
+          } else if (reason === '当前场景角色') {
              // Reason is '当前场景角色'
              const runtimeStatus = gameStore.state.npcs[card.uuid] || gameStore.state.npcs[card.name];
-             if (runtimeStatus) {
+             if (runtimeStatus && (card.type === 'character' || !card.type)) {
                content += `\n[当前状态]
 好感度: ${runtimeStatus.favorability}
 心情: ${runtimeStatus.mood}
