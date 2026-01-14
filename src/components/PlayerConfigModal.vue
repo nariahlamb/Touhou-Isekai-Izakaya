@@ -125,20 +125,64 @@ function handleAvatarFile(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (!file) return;
 
+  // Compress Image before setting to rawImage
   const reader = new FileReader();
   reader.onload = (event) => {
-    rawImage.value = event.target?.result as string;
-    showCropperModal.value = true;
-    
-    // Reset state
-    cropperState.value = {
-      scale: 1,
-      x: 0,
-      y: 0,
-      dragging: false,
-      startX: 0,
-      startY: 0
+    const img = new Image();
+    img.onload = () => {
+        // Compress logic
+        const MAX_SIZE = 1024; // Max width or height
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+            if (width > MAX_SIZE) {
+                height *= MAX_SIZE / width;
+                width = MAX_SIZE;
+            }
+        } else {
+            if (height > MAX_SIZE) {
+                width *= MAX_SIZE / height;
+                height = MAX_SIZE;
+            }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            // Use JPEG for better compression of photos, 0.8 quality
+            // If original was PNG with transparency, this might add black background, 
+            // but for avatar raw source usually fine. If we want to keep transparency we should check file type.
+            // However, large PNGs are the main issue. Let's stick to JPEG for raw source storage reduction unless strictly needed.
+            // Actually, let's keep format dynamic but limit size.
+            let mimeType = file.type;
+            if (mimeType === 'image/svg+xml') mimeType = 'image/png'; // Convert SVG to raster
+            
+            // Force JPEG if file is large (>1MB) to save space, otherwise keep original format?
+            // Safer to just compress to JPEG if it's not transparent, or PNG if it is.
+            // For simplicity and space: verify if transparency is needed?
+            // Player avatars usually don't need transparency for the raw upload (usually photos/art).
+            // Let's use JPEG 0.85 for significant size reduction.
+            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            
+            rawImage.value = compressedDataUrl;
+            showCropperModal.value = true;
+            
+            // Reset state
+            cropperState.value = {
+                scale: 1,
+                x: 0,
+                y: 0,
+                dragging: false,
+                startX: 0,
+                startY: 0
+            };
+        }
     };
+    img.src = event.target?.result as string;
   };
   reader.readAsDataURL(file);
   
