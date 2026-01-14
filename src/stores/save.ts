@@ -136,25 +136,63 @@ export const useSaveStore = defineStore('save', () => {
     await loadSaves();
   }
 
-  async function exportSave(id: number): Promise<string> {
+  async function exportSave(id: number): Promise<Blob> {
     const numericId = Number(id);
     const saveSlot = await db.saveSlots.get(numericId);
     if (!saveSlot) throw new Error("Save not found");
 
-    const chats = await db.chats.where('saveSlotId').equals(numericId).toArray();
-    const memories = await db.memories.where('saveSlotId').equals(numericId).toArray();
-    const snapshots = await db.snapshots.where('saveSlotId').equals(numericId).toArray();
-    const characters = await db.characters.toArray(); // Characters are global but needed for save consistency
+    const blobParts: string[] = [];
 
-    return JSON.stringify({
-      version: 2,
-      timestamp: Date.now(),
-      saveSlot: { ...saveSlot, id: undefined },
-      chats,
-      memories,
-      snapshots,
-      characters
+    // Helper to push string parts
+    const push = (str: string) => blobParts.push(str);
+
+    push('{');
+    push(`"version":2,"timestamp":${Date.now()},`);
+    push(`"saveSlot":${JSON.stringify({ ...saveSlot, id: undefined })},`);
+
+    // Chats
+    push('"chats":[');
+    let first = true;
+    await db.chats.where('saveSlotId').equals(numericId).each(chat => {
+      if (!first) push(',');
+      push(JSON.stringify(chat));
+      first = false;
     });
+    push('],');
+
+    // Memories
+    push('"memories":[');
+    first = true;
+    await db.memories.where('saveSlotId').equals(numericId).each(memory => {
+      if (!first) push(',');
+      push(JSON.stringify(memory));
+      first = false;
+    });
+    push('],');
+
+    // Snapshots
+    push('"snapshots":[');
+    first = true;
+    await db.snapshots.where('saveSlotId').equals(numericId).each(snapshot => {
+      if (!first) push(',');
+      push(JSON.stringify(snapshot));
+      first = false;
+    });
+    push('],');
+
+    // Characters
+    push('"characters":[');
+    first = true;
+    await db.characters.each(character => {
+      if (!first) push(',');
+      push(JSON.stringify(character));
+      first = false;
+    });
+    push(']');
+
+    push('}');
+
+    return new Blob(blobParts, { type: 'application/json' });
   }
 
   async function importSave(fileContent: string) {

@@ -151,8 +151,8 @@ async function handleExport(save: any) {
   
   try {
     console.log(`[SaveManager] Exporting save ${save.id} (${save.name})...`);
-    const json = await saveStore.exportSave(save.id);
-    const blob = new Blob([json], { type: 'application/json' });
+    const blob = await saveStore.exportSave(save.id);
+    // const blob = new Blob([json], { type: 'application/json' }); // exportSave now returns Blob directly
     
     // Check size
     if (blob.size > 100 * 1024 * 1024) { // 100MB
