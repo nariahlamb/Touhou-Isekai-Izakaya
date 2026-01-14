@@ -175,6 +175,14 @@ export const useSaveStore = defineStore('save', () => {
     first = true;
     await db.snapshots.where('saveSlotId').equals(numericId).each(snapshot => {
       if (!first) push(',');
+
+      // [Optimization] Remove large avatar data from export to prevent memory overflow and huge file sizes
+      // The user suggested excluding it from export.
+      if (snapshot.state?.player) {
+        if (snapshot.state.player.avatarUrl) delete snapshot.state.player.avatarUrl;
+        if (snapshot.state.player.referenceImageUrl) delete snapshot.state.player.referenceImageUrl;
+      }
+
       push(JSON.stringify(snapshot));
       first = false;
     });
