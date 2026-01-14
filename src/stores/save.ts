@@ -178,9 +178,26 @@ export const useSaveStore = defineStore('save', () => {
 
       // [Optimization] Remove large avatar data from export to prevent memory overflow and huge file sizes
       // The user suggested excluding it from export.
-      if (snapshot.state?.player) {
-        if (snapshot.state.player.avatarUrl) delete snapshot.state.player.avatarUrl;
-        if (snapshot.state.player.referenceImageUrl) delete snapshot.state.player.referenceImageUrl;
+      try {
+        if (snapshot.gameState) {
+          const stateObj = JSON.parse(snapshot.gameState);
+          if (stateObj.player) {
+            let changed = false;
+            if (stateObj.player.avatarUrl) {
+              delete stateObj.player.avatarUrl;
+              changed = true;
+            }
+            if (stateObj.player.referenceImageUrl) {
+              delete stateObj.player.referenceImageUrl;
+              changed = true;
+            }
+            if (changed) {
+              snapshot.gameState = JSON.stringify(stateObj);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to parse snapshot state for export optimization', e);
       }
 
       push(JSON.stringify(snapshot));
