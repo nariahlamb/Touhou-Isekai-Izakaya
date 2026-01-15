@@ -31,6 +31,7 @@ export const CHARACTER_NAME_TO_ID_MAP: Record<string, string> = {
   '帕秋莉诺蕾姬': 'patchouli',
   '帕秋莉': 'patchouli',
   '红美铃': 'meiling',
+  '红美玲': 'meiling',
   '琪露诺': 'cirno',
   '东风谷早苗': 'sanae',
   '射命丸文': 'aya',
@@ -96,6 +97,8 @@ export const CHARACTER_NAME_TO_ID_MAP: Record<string, string> = {
   '八坂神奈子': 'kanako',
   '吉吊八千慧': 'yachie',
   '娜兹玲': 'nazrin',
+  '纳兹琳': 'nazrin',
+  '娜兹琳': 'nazrin',
   '宫古芳香': 'yoshika',
   '寅丸星': 'shou',
   '封兽鵺': 'nue',
@@ -110,6 +113,7 @@ export const CHARACTER_NAME_TO_ID_MAP: Record<string, string> = {
   '星熊勇仪': 'yuugi',
   '月夜见': 'tsukuyomi',
   '本居小铃': 'kosuzu',
+  '本居小玲': 'kosuzu',
   '朱鹭子': 'tokiko',
   '村纱水蜜': 'murasa',
   '杖刀偶磨弓': 'mayumi',
@@ -118,6 +122,8 @@ export const CHARACTER_NAME_TO_ID_MAP: Record<string, string> = {
   '森近霖之助': 'rinnosuke',
   '水桥帕露西': 'parsee',
   '洩矢诹访子': 'suwako',
+  '泄矢诹访子': 'suwako',
+  '诹访子': 'suwako',
   '物部布都': 'futo',
   '犬走椛': 'momiji',
   '玉造魅须丸': 'misumaru',
@@ -146,6 +152,7 @@ export const CHARACTER_NAME_TO_ID_MAP: Record<string, string> = {
   '龙神': 'dragon',
   '冴月麟': 'rin',
   '堀川雷鼓': 'raiko',
+  '崛川雷鼓': 'raiko',
   '多多良小伞': 'kogasa',
   '天魔': 'tenma',
   '山城高岭': 'takane',
@@ -240,8 +247,25 @@ export function findAvatarImage(name: string, avatarMap: Record<string, any>): s
     // 1. Try exact match with constructed path (Standard Convention: {Name}_头像.png)
     const directKey = `/src/assets/images/head/${name}_头像.png`;
     if (avatarMap[directKey]) return avatarMap[directKey] as string;
+
+    // 2. Try ID-based Reverse Lookup (Canonical Match)
+    // This solves variants like "红美铃" vs "红美玲", "堀川雷鼓" vs "崛川雷鼓"
+    const charId = resolveCharacterId(name); // Use existing resolver to get ID (e.g. 'meiling')
+    if (charId && charId !== name) { // If resolved to an ID
+        // Find all aliases for this ID
+        const aliases = Object.entries(CHARACTER_NAME_TO_ID_MAP)
+            .filter(([_, id]) => id === charId)
+            .map(([alias, _]) => alias);
+        
+        for (const alias of aliases) {
+            const aliasKey = `/src/assets/images/head/${alias}_头像.png`;
+            if (avatarMap[aliasKey]) {
+                return avatarMap[aliasKey] as string;
+            }
+        }
+    }
   
-    // 2. Fuzzy match
+    // 3. Fuzzy match (Fallback)
     for (const path of normalizedKeys) {
         const fileName = path.split('/').pop()?.split('\\').pop(); // Get filename
         if (!fileName) continue;
