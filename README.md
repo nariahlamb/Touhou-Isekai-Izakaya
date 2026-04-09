@@ -137,9 +137,9 @@
 
 <br/>
 
-<h3>🎮 <a href="https://yokoncy.github.io/Touhou-Isekai-Izakaya/">立即试玩 / Live Demo</a></h3>
+<h3>🎮 <a href="https://touhouisk.cn/">立即试玩 / Live Demo</a></h3>
 <p>
-  <b><a href="https://yokoncy.github.io/Touhou-Isekai-Izakaya/">👉 点击进入幻想乡 / Enter Gensokyo</a></b>
+  <b><a href="https://izakaya.touhou.best/">👉 点击进入幻想乡 / Enter Gensokyo</a></b>
   <br/>
   <sub>⛩️ 东方异界食堂 beta 🍵 还没有任何对话... 点一杯茶，开始你的幻想乡物语吧。</sub>
 </p>
